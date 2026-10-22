@@ -1,0 +1,1597 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#2c2c2a">
+<meta name="description" content="Goodgame Empire 要塞・ドラゴン トラッカー">
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<title>要塞・ドラゴン トラッカー</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    background: #f4f2ec;
+    color: #2c2c2a;
+    padding: 16px 12px 60px;
+  }
+  .wrap { max-width: 480px; margin: 0 auto; }
+  h1 { font-size: 18px; font-weight: 700; margin: 4px 0 2px; text-align: center; }
+  .sub { font-size: 12px; color: #6b6a65; text-align: center; margin: 0 0 14px; }
+
+  .tabs { display: flex; gap: 6px; margin-bottom: 14px; background: #eceae2; border-radius: 10px; padding: 4px; }
+  .tabBtn { flex: 1; border: none; background: transparent; padding: 10px 4px; font-size: 13px; font-weight: 600; color: #6b6a65; border-radius: 8px; cursor: pointer; }
+  .tabBtn.active { background: #fff; color: #2c2c2a; }
+  .tabBtn .count { display: inline-block; min-width: 16px; padding: 0 4px; margin-left: 4px; border-radius: 999px; background: #c0392b; color: #fff; font-size: 10px; line-height: 16px; }
+
+  .addBtn { width: 100%; height: 46px; border: none; border-radius: 10px; background: #2c2c2a; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; margin-bottom: 10px; }
+  .addBtn:active { transform: scale(0.99); }
+  .addBtn.secondary { background: #6b6a65; }
+
+  .panel { background: #fff; border: 1px solid #e4e2da; border-radius: 14px; padding: 16px; margin-bottom: 16px; display: none; }
+  .panel.open { display: block; }
+  .panel h2 { font-size: 15px; margin: 0 0 12px; }
+
+  .field { margin-bottom: 12px; }
+  .field label { font-size: 12px; color: #6b6a65; display: block; margin-bottom: 5px; }
+  .rowFields { display: flex; gap: 8px; }
+  .rowFields .field { flex: 1; margin-bottom: 12px; }
+
+  input[type="text"], input[type="password"], input[type="number"], input[type="date"], select, textarea {
+    width: 100%; height: 42px; border: 1px solid #d3d1c7; border-radius: 8px; padding: 0 10px; font-size: 15px; background: #fafaf7;
+  }
+  textarea { height: 90px; padding: 8px 10px; font-size: 13px; font-family: inherit; resize: vertical; }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: #999790; background: #fff; }
+
+  .miniLabel { font-size: 11px; color: #a8a69d; margin: 2px 0 8px; line-height: 1.5; }
+
+  .panelBtns { display: flex; gap: 8px; margin-top: 4px; }
+  .panelBtns button { flex: 1; height: 44px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; }
+  .btnSave { background: #2c2c2a; color: #fff; }
+  .btnCancel { background: #eceae2; color: #2c2c2a; }
+
+  .empty { text-align: center; color: #a8a69d; font-size: 13px; padding: 40px 0; }
+
+  .card { background: #fff; border: 1px solid #e4e2da; border-radius: 14px; padding: 14px; margin-bottom: 10px; }
+  .card.ready { border-color: #c0392b; background: #fff5f4; }
+  .card.ready.aqua { border-color: #1c6e8c; background: #f0f9fc; }
+
+  .readyNote { font-size: 12px; color: #a8433a; margin: 6px 0 8px; line-height: 1.4; }
+  .readyNote.aqua { color: #14607e; }
+  .readyInputs { display: flex; gap: 6px; align-items: flex-end; margin-bottom: 8px; }
+  .readyInputs .field { flex: 1; margin-bottom: 0; }
+  .readyInputs label { font-size: 11px; color: #a8433a; display: block; margin-bottom: 4px; }
+  .readyInputs.aqua label { color: #14607e; }
+  .readyInputs input { height: 38px; font-size: 14px; }
+  .btnReadyUpdate { height: 38px; padding: 0 12px; border-radius: 8px; border: none; background: #c0392b; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .btnReadyUpdate.aqua { background: #1c6e8c; }
+
+  .cardTop { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .tag { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; color: #fff; }
+  .tag.dragon { background: #c0392b; }
+  .tag.fortress { background: #a3742d; }
+  .tag.wild { background: #2f8a57; }
+  .tag.smallAqua { background: #2e9bbf; }
+  .tag.aqua { background: #2457a6; }
+  .warnNote { font-size: 12px; color: #8a5a00; background: #fff6e0; border: 1px solid #f0d9a0; border-radius: 8px; padding: 8px 10px; margin: 0 0 10px; line-height: 1.5; }
+  .cardLabel { font-size: 13px; color: #6b6a65; margin-left: 6px; }
+
+  .coord { font-size: 12px; color: #8a887f; margin-bottom: 8px; }
+
+  .timeBig { font-size: 22px; font-weight: 700; letter-spacing: 0.5px; }
+  .timeBig.readyText { color: #c0392b; }
+  .timeBig.readyText.aqua { color: #1c6e8c; }
+  .clockNote { font-size: 12px; color: #a8a69d; margin-top: 2px; }
+
+  .cardBtns { display: flex; gap: 6px; margin-top: 10px; }
+  .cardBtns button { flex: 1; height: 38px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; }
+  .btnEdit { background: #eceae2; color: #2c2c2a; }
+  .btnDelete { background: #eceae2; color: #b5442e; }
+
+  .resultBtns { display: flex; gap: 6px; margin-bottom: 8px; }
+  .resultBtns button { flex: 1; height: 38px; border-radius: 8px; border: none; font-size: 12px; font-weight: 700; cursor: pointer; }
+  .btnSuccess { background: #e7f4ec; color: #27784a; }
+  .btnTaken { background: #fae9e6; color: #b5442e; }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: #2c2c2a; color: #fff; padding: 10px 22px; border-radius: 999px;
+    font-size: 13px; font-weight: 600; opacity: 0; pointer-events: none;
+    transition: opacity 0.25s ease; z-index: 999; white-space: nowrap;
+  }
+  .toast.show { opacity: 1; }
+
+  .modalOverlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+    display: none; align-items: center; justify-content: center;
+    z-index: 1000; padding: 20px;
+  }
+  .modalOverlay.show { display: flex; }
+  .modalBox { background: #fff; border-radius: 14px; padding: 20px; max-width: 340px; width: 100%; }
+  .modalMsg { font-size: 14px; line-height: 1.6; white-space: pre-wrap; margin: 0 0 16px; }
+  .modalBtns { display: flex; gap: 8px; }
+  .modalBtns button { flex: 1; height: 44px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; }
+
+  .searchBox { display: flex; gap: 8px; margin-bottom: 8px; }
+  .searchBox input { flex: 1; }
+  .filterRow { display: flex; gap: 6px; margin-bottom: 12px; }
+  .filterRow select { flex: 1; height: 38px; font-size: 13px; }
+  .resultSummary { font-size: 11px; color: #8a887f; margin: 0 0 8px; } .sortRow{display:flex;gap:6px;margin-bottom:12px}.sortRow select{flex:1;height:38px;font-size:13px}.periodBtns{display:flex;gap:6px;margin-bottom:10px}.periodBtn{flex:1;height:38px;border:1px solid #d3d1c7;background:#fafaf7;color:#6b6a65;border-radius:8px;font-size:12px;font-weight:600}.periodBtn.active{background:#2c2c2a;color:#fff;border-color:#2c2c2a}.statSub{font-size:11px;color:#8a887f;margin-top:3px}
+  .bulkHint { font-size: 11px; color: #8a887f; line-height: 1.5; margin: 4px 0 10px; }
+
+  .historyCard { background: #fff; border: 1px solid #e4e2da; border-radius: 12px; padding: 12px; margin-bottom: 8px; }
+  .historyResult { font-size: 14px; font-weight: 700; }
+  .historyResult.success { color: #27784a; }
+  .historyResult.taken { color: #b5442e; }
+  .historyMeta { font-size: 11px; color: #8a887f; margin-top: 4px; }
+  .statsBox { background: #fff; border: 1px solid #e4e2da; border-radius: 12px; padding: 12px; margin-bottom: 12px; }
+  .statsGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stat { background: #fafaf7; border-radius: 9px; padding: 10px; }
+  .statLabel { font-size: 10px; color: #8a887f; }
+  .statValue { font-size: 20px; font-weight: 700; margin-top: 2px; }
+  .sectionTitle { font-size: 14px; font-weight: 700; margin: 14px 0 8px; }
+  @media (max-width: 380px) { .statsGrid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="modalOverlay" id="modalOverlay">
+  <div class="modalBox">
+    <p class="modalMsg" id="modalMsg"></p>
+    <div class="modalBtns">
+      <button class="btnCancel" id="modalCancelBtn" style="display:none;">キャンセル</button>
+      <button class="btnSave" id="modalOkBtn">OK</button>
+    </div>
+  </div>
+</div>
+<div id="toast" class="toast"></div>
+<div class="wrap">
+  <h1>要塞・ドラゴン トラッカー</h1>
+  <p class="sub">攻撃可能(浮上)になる順に自動で並びます</p>
+
+  <div class="tabs">
+    <button class="tabBtn active" data-tab="main">一覧</button>
+    <button class="tabBtn" data-tab="ready">攻撃可能<span class="count" id="readyCount" style="display:none;"></span></button>
+    <button class="tabBtn" data-tab="stats">集計</button>
+  </div>
+
+  <!-- ===== タブ1: 一覧 ===== -->
+  <div class="tabContent" id="tab-main">
+    <button class="addBtn" id="openAdd">＋ 新規登録</button>
+    <div style="display:flex; gap:8px; margin-bottom:14px;">
+      <button class="addBtn secondary" id="openBulk" style="margin-bottom:0;">＋ 複数登録</button>
+      <button class="addBtn secondary" id="openBackup" style="margin-bottom:0;">データの引き継ぎ</button>
+    </div>
+    <p class="statSub" id="countSummary" style="text-align:center; margin:-6px 0 14px;"></p>
+    <button class="addBtn secondary" id="syncNowBtn" type="button" style="display:none; margin-bottom:14px;">🔄 アクアを今すぐ同期</button>
+    <details id="syncLogBox" style="display:none; margin:-6px 0 14px; background:#fff; border:1px solid #e0dccf; border-radius:10px; padding:8px 12px;">
+      <summary style="cursor:pointer; font-weight:700; font-size:13px;">📜 同期の反映履歴</summary>
+      <div id="syncLogBody" style="margin-top:8px; font-size:12px; line-height:1.6;"></div>
+      <button class="addBtn secondary" id="syncLogClear" type="button" style="margin-top:8px; padding:6px 10px; font-size:12px;">履歴を消去</button>
+    </details>
+    <details class="panel" style="display:block;margin-bottom:14px;"><summary style="font-weight:700;cursor:pointer;">表示・記録設定（種類ごとにオン／オフ）</summary>
+      <p class="miniLabel">オフにしても登録データは削除されず、一覧・攻撃可能タブで非表示になります。</p>
+      <div id="typeSettings"></div>
+      <p class="miniLabel" style="margin:12px 0 6px;">距離フィルター：種類ごとに表示する距離の上限を自由に設定できます。件数は設定欄に表示します。</p>
+      <div id="nearCounts" style="font-size:13px;line-height:1.8;margin-bottom:10px;"></div>
+      <h3 style="font-size:14px;margin:18px 0 6px;">🔔 プッシュ通知（ページを閉じても通知）</h3>
+      <p class="miniLabel">ドラゴン・砂漠の要塞・野生の要塞だけを、この端末専用の通知スケジュールとして送信します。アクア共有同期には通知設定・座標を送信しません。</p>
+      <div class="field"><label>通知サーバーURL（Cloudflare WorkerのURL）</label><input id="pushApiBaseUrl" type="text" placeholder="https://your-site.netlify.app"></div>
+      <div class="field"><label>VAPID公開鍵（サーバー側のVAPID_PUBLIC_KEY）</label><input id="pushVapidPublicKey" type="text" autocomplete="off" placeholder="B..."></div>
+      <button class="addBtn secondary" id="enablePushBtn" type="button">🔔 プッシュ通知を許可・有効化する</button>
+      <p class="miniLabel" id="pushStatus" role="status">通知の状態を確認しています…</p>
+      <p class="miniLabel" id="iosPushHint" style="display:none;">iPhoneでは共有ボタンから「ホーム画面に追加」するとプッシュ通知が使えます。</p>
+      <div style="display:grid;grid-template-columns:1fr;gap:7px;margin:8px 0 12px;">
+        <label style="display:flex;gap:8px;align-items:center;"><input type="checkbox" id="pushTypeDragon" checked> ドラゴンの通知</label>
+        <label style="display:flex;gap:8px;align-items:center;"><input type="checkbox" id="pushTypeFortress" checked> 砂漠の要塞の通知</label>
+        <label style="display:flex;gap:8px;align-items:center;"><input type="checkbox" id="pushTypeWildFortress" checked> 野生の要塞の通知</label>
+      </div>
+      <div class="field"><label for="pushOffsetMinutes">通知タイミング</label><select id="pushOffsetMinutes"><option value="0">0分前（攻撃可能になった瞬間）</option><option value="1">1分前</option><option value="3" selected>3分前</option><option value="5">5分前</option><option value="10">10分前</option></select></div>
+      <label style="display:flex;gap:8px;align-items:center;margin:8px 0;"><input type="checkbox" id="pushNearOnly"> 距離上限以内の座標のみ通知する（種類ごとの距離フィルター設定を使用）</label>
+      <label style="display:flex;gap:8px;align-items:center;margin:8px 0;"><input type="checkbox" id="foregroundSound" checked> 画面を開いている時に通知音を鳴らす</label>
+      <button class="addBtn secondary" id="savePushSettingsBtn" type="button">通知設定を保存</button>
+      <p class="miniLabel">※通知にはHTTPS、ブラウザ通知の許可、サーバー側の設定が必要です。サーバーへ送るのはこの端末の通知対象だけです。アクア同期のURL・合言葉とは別管理です。</p>
+      <h3 style="font-size:14px;margin:14px 0 6px;">ドラゴン用の自分の座標</h3>
+      <div class="rowFields"><div class="field"><label>X座標</label><input id="homeDragonX" type="number" placeholder="X座標"></div><div class="field"><label>Y座標</label><input id="homeDragonY" type="number" placeholder="Y座標"></div></div>
+      <h3 style="font-size:14px;margin:14px 0 6px;">砂漠の要塞用の自分の座標</h3>
+      <div class="rowFields"><div class="field"><label>X座標</label><input id="homeFortressX" type="number" placeholder="X座標"></div><div class="field"><label>Y座標</label><input id="homeFortressY" type="number" placeholder="Y座標"></div></div>
+      <h3 style="font-size:14px;margin:14px 0 6px;">野生の要塞用の自分の座標</h3>
+      <div class="rowFields"><div class="field"><label>X座標</label><input id="homeWildFortressX" type="number" placeholder="X座標"></div><div class="field"><label>Y座標</label><input id="homeWildFortressY" type="number" placeholder="Y座標"></div></div>
+      <button class="addBtn secondary" id="saveSettings" type="button">設定を保存</button>
+      <h3 style="font-size:14px;margin:18px 0 6px;">アクア同期（Googleスプレッドシート）</h3>
+      <p class="miniLabel">大アクア・小アクアの座標と時刻だけを相手と共有します。ドラゴン・要塞・自分の座標・ルビー履歴は送信されず、この端末にだけ保存されます。日付が変わって最初に開いた時に自動で同期し、上の「今すぐ同期」でも手動同期できます。</p>
+      <div class="field"><label>同期URL（GASのウェブアプリURL）</label><input id="syncUrl" type="text" autocomplete="off" placeholder="https://script.google.com/macros/s/.../exec"></div>
+      <div class="field"><label>合言葉</label><input id="syncToken" type="password" autocomplete="off" placeholder="GAS側と同じ合言葉"></div>
+      <button class="addBtn secondary" id="syncSaveBtn" type="button">同期設定を保存して今すぐ同期</button>
+      <p class="miniLabel" id="syncStatus" style="margin-top:2px;"></p>
+      <p class="miniLabel">URLと合言葉を両方空欄にして保存すると、同期を解除します（この端末のデータは消えません）。</p>
+      <h3 style="font-size:14px;margin:18px 0 6px;color:#b5442e;">月次リセット</h3>
+      <p class="miniLabel">小アクア・大アクアの座標登録をまとめて削除できます。攻撃履歴・ルビー集計は残ります。同期設定済みの場合、削除は次回の同期で相手側にも反映されます。</p>
+      <button class="btnDelete" id="clearAquaCoordinates" type="button" style="width:100%;padding:12px;margin-top:6px;">小アクア・大アクアの座標を全削除</button>
+    </details>
+
+    <div class="panel" id="bulkPanel">
+      <h2>複数登録</h2>
+      <div class="field">
+        <label>登録する種類</label>
+        <select id="bulk-type">
+          <option value="wildFortress">野生の要塞</option>
+          <option value="fortress">砂漠の要塞</option>
+          <option value="dragon">ドラゴン</option>
+          <option value="aqua">大アクア</option>
+          <option value="smallAqua">小アクア</option>
+        </select>
+      </div>
+
+      <div class="rowFields">
+        <div class="field"><label>X座標</label><input type="number" id="bulk-x" min="0" placeholder="例: 662"></div>
+        <div class="field"><label>Y座標</label><input type="number" id="bulk-y" min="0" placeholder="例: 662"></div>
+      </div>
+      <button class="addBtn secondary" id="bulkAddOne" type="button" style="margin-bottom:14px;">＋ リストに追加</button>
+
+      <div class="field" id="bulkListWrap" style="display:none;">
+        <label>登録予定(<span id="bulkListCount">0</span>件)</label>
+        <div id="bulkListArea"></div>
+      </div>
+
+      <details style="margin: 4px 0 14px;">
+        <summary style="font-size:12px; color:#6b6a65; cursor:pointer;">まとめて貼り付けたい場合はこちら</summary>
+        <div class="field" style="margin-top:10px;">
+          <textarea id="bulkCoords" placeholder="1行に1件&#10;例: 662,662&#10;700,531&#10;または 662 662"></textarea>
+          <button class="addBtn secondary" id="bulkParsePaste" type="button" style="margin-top:8px;">貼り付けた内容をリストに追加</button>
+        </div>
+      </details>
+
+      <p class="bulkHint">追加した座標はすべて「攻撃可能」タブへ移動するので、そこから実際の残り時間を入力してください。</p>
+      <div class="panelBtns">
+        <button class="btnCancel" id="closeBulk">キャンセル</button>
+        <button class="btnSave" id="bulkSave">登録する(<span id="bulkSaveCount">0</span>件)</button>
+      </div>
+    </div>
+
+    <div class="panel" id="panel">
+      <h2 id="panelTitle">新規登録</h2>
+      <div class="rowFields">
+        <div class="field">
+          <label>種類</label>
+          <select id="f-type">
+            <option value="wildFortress">野生の要塞</option>
+            <option value="fortress">砂漠の要塞</option>
+            <option value="dragon">ドラゴン</option>
+            <option value="aqua">大アクア</option>
+            <option value="smallAqua">小アクア</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>ラベル(任意)</label>
+          <input type="text" id="f-label" placeholder="例: 0126">
+        </div>
+      </div>
+      <div class="rowFields">
+        <div class="field">
+          <label>X座標</label>
+          <input type="number" id="f-x" min="0" placeholder="例: 662">
+        </div>
+        <div class="field">
+          <label>Y座標</label>
+          <input type="number" id="f-y" min="0" placeholder="例: 662">
+        </div>
+      </div>
+      <div class="field">
+        <label id="remainLabel">現在の残り時間</label>
+        <div class="rowFields">
+          <div class="field"><input type="number" id="f-rh" min="0" placeholder="時間"></div>
+          <div class="field"><input type="number" id="f-rm" min="0" max="59" placeholder="分"></div>
+        </div>
+        <p class="miniLabel" id="remainHint">画面に表示されている「攻撃可能になるまで」の時間を入力(例: 78時間ならそのまま78)。空欄のまま保存すると「攻撃可能」タブに入り、あとから残り時間を入力できます。</p>
+      </div>
+      <div class="panelBtns">
+        <button class="btnCancel" id="cancelBtn">キャンセル</button>
+        <button class="btnSave" id="saveBtn">保存</button>
+      </div>
+    </div>
+
+    <div class="panel" id="backupPanel">
+      <h2>データの引き継ぎ</h2>
+      <p class="miniLabel">座標が多いとコピー&貼り付けは大変なので、ファイルとして保存/読み込みするのがおすすめです。</p>
+
+      <div class="panelBtns" style="margin-bottom:16px;">
+        <button class="btnSave" id="downloadBtn" type="button">① ファイルに保存する</button>
+      </div>
+      <button class="addBtn secondary" id="importFileBtn" type="button" style="margin-bottom:16px;">② ファイルを選んで読み込む</button>
+      <input type="file" id="importFileInput" accept="application/json,.json" style="display:none;">
+
+      <details style="margin: 4px 0 4px;">
+        <summary style="font-size:12px; color:#6b6a65; cursor:pointer;">コピー&貼り付けで移行したい場合はこちら</summary>
+        <div class="field" style="margin-top:10px;">
+          <label>①今のデータ(コピーしてください)</label>
+          <textarea id="exportArea" readonly></textarea>
+        </div>
+        <div class="panelBtns" style="margin-bottom:16px;">
+          <button class="btnSave" id="copyBtn" type="button">コピーする</button>
+        </div>
+        <div class="field">
+          <label>②別の場所のデータを貼り付けて読み込む</label>
+          <textarea id="importArea" placeholder="ここに貼り付け"></textarea>
+        </div>
+        <div class="panelBtns" style="margin-bottom:14px;">
+          <button class="btnSave" id="importBtn" type="button">貼り付けた内容を読み込む</button>
+        </div>
+      </details>
+
+      <div class="panelBtns">
+        <button class="btnCancel" id="closeBackup" style="flex:1;">閉じる</button>
+      </div>
+    </div>
+
+    <div class="searchBox">
+      <input type="text" id="searchInput" placeholder="座標・ラベルで検索（例: 662 715）">
+      <button class="addBtn secondary" id="clearSearch" style="width:72px; height:42px; margin:0;">クリア</button>
+    </div>
+    <div class="filterRow">
+      <select id="typeFilter">
+        <option value="all">すべての種類</option>
+        <option value="wildFortress">野生の要塞</option>
+        <option value="fortress">砂漠の要塞</option>
+        <option value="dragon">ドラゴン</option>
+        <option value="aqua">大アクア</option>
+        <option value="smallAqua">小アクア</option>
+      </select>
+    </div>
+    <div class="sortRow"><select id="sortSelect"><option value="timeAsc">攻撃可能になる順</option><option value="timeDesc">攻撃可能になる遅い順</option><option value="coordAsc">座標順(X→Y)</option><option value="coordDesc">座標順(X→Y)逆順</option><option value="type">種類順</option><option value="label">ラベル順</option></select></div>
+    <p class="warnNote" id="nearWarning" style="display:none;"></p>
+    <p class="resultSummary" id="resultSummary"></p>
+    <div id="list"></div>
+  </div>
+
+  <!-- ===== タブ2: 攻撃可能 ===== -->
+  <div class="tabContent" id="tab-ready" style="display:none">
+    <p class="miniLabel" style="margin-bottom:12px;">新規登録した座標、攻撃可能(浮上)になったものがここに表示されます。ドラゴン・要塞は「取れた！記録する」で記録できます。小アクア・大アクアは時間管理のみ行い、獲得記録は行いません。</p>
+    <div class="filterRow" style="margin-bottom:12px;">
+      <select id="readyTypeFilter" aria-label="攻撃可能タブの種類で絞り込み">
+        <option value="all">すべての種類</option>
+        <option value="wildFortress">野生の要塞</option>
+        <option value="fortress">砂漠の要塞</option>
+        <option value="dragon">ドラゴン</option>
+        <option value="aqua">大アクア</option>
+        <option value="smallAqua">小アクア</option>
+      </select>
+    </div>
+    <p class="warnNote" id="nearWarningReady" style="display:none;"></p>
+    <div id="readyList"></div>
+  </div>
+
+  <!-- ===== タブ3: ルビー集計 ===== -->
+  <div class="tabContent" id="tab-stats" style="display:none">
+    <div class="statsBox"><h2 style="font-size:15px;margin:0 0 10px;">ルビー獲得集計</h2><div class="periodBtns"><button class="periodBtn active" data-period="today">今日</button><button class="periodBtn" data-period="month">今月</button><button class="periodBtn" data-period="all">全期間</button><button class="periodBtn" data-period="date">指定日</button></div><div class="field" id="statsDateWrap" style="display:none;"><label>表示日</label><input type="date" id="statsDate"></div><div class="statsGrid"><div class="stat"><div class="statLabel">獲得ルビー</div><div class="statValue" id="rubyTotal">0</div></div><div class="stat"><div class="statLabel">1日平均獲得ルビー</div><div class="statValue" id="rubyAverage">0</div></div></div></div>
+    <div class="sectionTitle">ルビー獲得履歴</div>
+    <div id="historyList"></div>
+  </div>
+</div>
+
+<script>
+var STORAGE_KEY = 'ggeUnifiedEntries';
+var LEGACY_MAIN_KEY = 'ggeTrackerEntries';
+var LEGACY_AQUA_KEY = 'ggeAquaEntries';
+var SURFACE_INTERVAL_MS = 72 * 3600 * 1000;
+var SMALL_AQUA_INTERVAL_MS = 32 * 3600 * 1000;
+var TRACKER_SETTINGS_KEY = 'ggeTrackerSettings';
+var trackerSettings = { enabled: { dragon:true, fortress:true, aqua:true, smallAqua:true, wildFortress:true }, near50: { dragon:false, fortress:false, wildFortress:false }, nearDistance: { dragon:50, fortress:50, wildFortress:50 }, homeX:'', homeY:'', homeCoords:{}, pushApiBaseUrl:'', pushVapidPublicKey:'', pushTypes:{dragon:true,fortress:true,wildFortress:true}, pushOffsetMinutes:3, pushNearOnly:false, foregroundSound:true };
+try { trackerSettings = Object.assign(trackerSettings, JSON.parse(localStorage.getItem(TRACKER_SETTINGS_KEY)||'{}')); trackerSettings.enabled = Object.assign({dragon:true,fortress:true,aqua:true,smallAqua:true,wildFortress:true}, trackerSettings.enabled||{}); trackerSettings.near50 = Object.assign({dragon:false,fortress:false,wildFortress:false}, trackerSettings.near50||{}); trackerSettings.nearDistance = Object.assign({dragon:50,fortress:50,wildFortress:50}, trackerSettings.nearDistance||{}); trackerSettings.homeCoords = Object.assign({}, trackerSettings.homeCoords||{}); trackerSettings.pushTypes = Object.assign({dragon:true,fortress:true,wildFortress:true}, trackerSettings.pushTypes||{}); } catch(e) {}
+['dragon','fortress','wildFortress'].forEach(function(t){ if(!trackerSettings.homeCoords[t]) trackerSettings.homeCoords[t]={x:trackerSettings.homeX||'',y:trackerSettings.homeY||''}; });
+var HISTORY_KEY = 'ggeAttackHistory';
+
+var entries = [];
+var attackHistory = [];
+
+/* ---------- migration ---------- */
+function migrateIfNeeded() {
+  if (localStorage.getItem(STORAGE_KEY) !== null) return;
+  var migrated = [];
+  try {
+    var oldMain = JSON.parse(localStorage.getItem(LEGACY_MAIN_KEY) || '[]');
+    oldMain.forEach(function(e) {
+      migrated.push({ id: e.id, type: e.type, label: e.label || '', x: e.x, y: e.y, eventAt: e.attackableAt });
+    });
+  } catch (e) {}
+  try {
+    var oldAqua = JSON.parse(localStorage.getItem(LEGACY_AQUA_KEY) || '[]');
+    oldAqua.forEach(function(e) {
+      migrated.push({ id: e.id, type: 'aqua', label: '', x: e.x, y: e.y, eventAt: e.surfaceAt });
+    });
+  } catch (e) {}
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated)); } catch (e) {}
+}
+
+/* ---------- storage ---------- */
+function loadEntries() {
+  try { var raw = localStorage.getItem(STORAGE_KEY); entries = raw ? JSON.parse(raw) : []; }
+  catch (e) { entries = []; }
+}
+function saveEntries() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(entries)); } catch (e) {} }
+function loadHistory() {
+  try { var raw = localStorage.getItem(HISTORY_KEY); attackHistory = raw ? JSON.parse(raw) : []; }
+  catch (e) { attackHistory = []; }
+}
+function saveHistory() { try { localStorage.setItem(HISTORY_KEY, JSON.stringify(attackHistory)); } catch (e) {} }
+function getLocalDateKey(ms) {
+  var d = new Date(ms);
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+}
+function defaultRubyForType(type) {
+  if (type === 'dragon') return 370;
+  if (type === 'fortress') return 280;
+  if (type === 'wildFortress') return 50;
+  return 0;
+}
+
+/* ---------- helpers ---------- */
+function pad(n) { return String(n).padStart(2, '0'); }
+function formatDuration(ms) {
+  if (ms <= 0) return '0';
+  var totalSec = Math.floor(ms / 1000);
+  var days = Math.floor(totalSec / 86400);
+  var hours = Math.floor((totalSec % 86400) / 3600);
+  var mins = Math.floor((totalSec % 3600) / 60);
+  var secs = totalSec % 60;
+  if (days > 0) return days + '日 ' + pad(hours) + ':' + pad(mins) + ':' + pad(secs);
+  return pad(hours) + ':' + pad(mins) + ':' + pad(secs);
+}
+function formatClock(date) {
+  return (date.getMonth() + 1) + '/' + date.getDate() + ' ' + pad(date.getHours()) + ':' + pad(date.getMinutes());
+}
+function typeLabel(t) {
+  if (t === 'dragon') return 'ドラゴン';
+  if (t === 'fortress') return '砂漠の要塞';
+  if (t === 'aqua') return '嵐の島(大アクア)';
+  if (t === 'smallAqua') return '小アクア';
+  if (t === 'wildFortress') return '野生の要塞';
+  return t;
+}
+function typeClass(t) {
+  if (t === 'dragon') return 'dragon';
+  if (t === 'wildFortress') return 'wild';
+  if (t === 'smallAqua') return 'smallAqua';
+  if (t === 'aqua') return 'aqua';
+  return 'fortress';
+}
+function isAquaFamily(t) { return t === 'aqua' || t === 'smallAqua'; }
+function intervalForType(t) { return t === 'aqua' ? SURFACE_INTERVAL_MS : (t === 'smallAqua' ? SMALL_AQUA_INTERVAL_MS : 0); }
+function saveTrackerSettings(){try{localStorage.setItem(TRACKER_SETTINGS_KEY,JSON.stringify(trackerSettings));}catch(e){}}
+function coordDistance(e){var t=e.type;if(['dragon','fortress','wildFortress'].indexOf(t)===-1||e.x==null||e.y==null)return null;var home=trackerSettings.homeCoords&&trackerSettings.homeCoords[t];if(!home||home.x===''||home.y===''||home.x==null||home.y==null)return null;var dx=Number(e.x)-Number(home.x),dy=Number(e.y)-Number(home.y);return Math.sqrt(dx*dx+dy*dy);}
+function hasHome(t) { var h = trackerSettings.homeCoords && trackerSettings.homeCoords[t]; return !!h && h.x !== '' && h.y !== '' && h.x != null && h.y != null; }
+/* 距離フィルターが有効なのは「ON」かつ「自分の座標が入力済み」のときだけ（未入力なら全件表示） */
+function nearFilterActive(t) { return !!(trackerSettings.near50 && trackerSettings.near50[t]) && hasHome(t); }
+function updateNearWarning() {
+  var names = [['dragon','ドラゴン'],['fortress','砂漠の要塞'],['wildFortress','野生の要塞']].filter(function(p) {
+    return trackerSettings.enabled[p[0]] !== false && trackerSettings.near50 && trackerSettings.near50[p[0]] && !hasHome(p[0]);
+  }).map(function(p) { return p[1]; });
+  var txt = names.length ? '距離絞り込みを利用するには自分の座標を入力してください（' + names.join('・') + '）。入力するまでは距離で絞り込まず、すべて表示します。' : '';
+  ['nearWarning', 'nearWarningReady'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = txt;
+    el.style.display = txt ? 'block' : 'none';
+  });
+}
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, function(c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+var toastTimer = null;
+function showToast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function() { t.classList.remove('show'); }, 1800);
+}
+
+/* ---------- custom modal (confirm/alertの代替) ---------- */
+var modalResolve = null;
+function showModal(message, withCancel) {
+  return new Promise(function(resolve) {
+    modalResolve = resolve;
+    document.getElementById('modalMsg').textContent = message;
+    document.getElementById('modalCancelBtn').style.display = withCancel ? 'block' : 'none';
+    document.getElementById('modalOverlay').classList.add('show');
+  });
+}
+document.getElementById('modalOkBtn').addEventListener('click', function() {
+  document.getElementById('modalOverlay').classList.remove('show');
+  if (modalResolve) { modalResolve(true); modalResolve = null; }
+});
+document.getElementById('modalCancelBtn').addEventListener('click', function() {
+  document.getElementById('modalOverlay').classList.remove('show');
+  if (modalResolve) { modalResolve(false); modalResolve = null; }
+});
+function showAlert(message) { return showModal(message, false); }
+function showConfirm(message) { return showModal(message, true); }
+
+/* ---------- tabs ---------- */
+function switchToTab(tabName) {
+  document.querySelectorAll('.tabBtn').forEach(function(b) { b.classList.toggle('active', b.dataset.tab === tabName); });
+  document.querySelectorAll('.tabContent').forEach(function(c) { c.style.display = (c.id === 'tab-' + tabName) ? 'block' : 'none'; });
+  if (tabName === 'stats') renderStats();
+}
+document.querySelectorAll('.tabBtn').forEach(function(btn) {
+  btn.addEventListener('click', function() { switchToTab(btn.dataset.tab); });
+});
+
+/* ---------- search / filter (一覧・攻撃可能タブ共通) ---------- */
+document.getElementById('searchInput').addEventListener('input', renderAll);
+document.getElementById('typeFilter').addEventListener('change', renderAll);
+document.getElementById('readyTypeFilter').addEventListener('change', renderReady);
+document.getElementById('sortSelect').addEventListener('change', renderAll);
+document.getElementById('clearSearch').addEventListener('click', function() {
+  document.getElementById('searchInput').value = '';
+  document.getElementById('typeFilter').value = 'all';
+  document.getElementById('sortSelect').value = 'timeAsc';
+  renderAll();
+});
+function applyFilter(list) {
+  var query = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+  var typeFilter = document.getElementById('typeFilter').value;
+  return list.filter(function(e) {
+    if (trackerSettings.enabled[e.type] === false) return false;
+    if (typeFilter !== 'all' && e.type !== typeFilter) return false;
+    if (nearFilterActive(e.type)) {
+      var dist = coordDistance(e);
+      var maxDist = Number(trackerSettings.nearDistance && trackerSettings.nearDistance[e.type]);
+      if (!Number.isFinite(maxDist) || maxDist < 0) maxDist = 50;
+      if (dist === null || dist > maxDist) return false;
+    }
+    if (!query) return true;
+    // X座標とY座標のペア検索に対応（例: 662 715 / X:662 Y:715 / 662,715）
+    var nums = query.match(/-?\d+(?:\.\d+)?/g);
+    if (nums && nums.length >= 2) {
+      if (String(e.x) === nums[0] && String(e.y) === nums[1]) return true;
+    }
+    var hay = String(e.x) + ' ' + String(e.y) + ' ' + (e.label || '');
+    return hay.toLowerCase().indexOf(query) !== -1;
+  });
+}
+function updateNearCounts(){
+  var types=[['dragon','ドラゴン'],['fortress','砂漠の要塞'],['wildFortress','野生の要塞']];
+  var html=types.map(function(t){var h=trackerSettings.homeCoords&&trackerSettings.homeCoords[t[0]],hasHome=h&&h.x!==''&&h.y!==''&&h.x!=null&&h.y!=null;var limit=Number(trackerSettings.nearDistance&&trackerSettings.nearDistance[t[0]]);if(!Number.isFinite(limit)||limit<0)limit=50;var n=entries.filter(function(e){return e.type===t[0]&&coordDistance(e)!==null&&coordDistance(e)<=limit;}).length;return '<div>'+t[1]+'：距離'+limit+'以内 '+n+'件'+(!hasHome?'（自分の座標を設定してください）':'')+'</div>';}).join('');
+  var el=document.getElementById('nearCounts');if(el)el.innerHTML=html;
+}
+function sortEntries(list){var mode=document.getElementById('sortSelect').value;return list.slice().sort(function(a,b){if(mode==='timeDesc')return b.eventAt-a.eventAt;if(mode==='coordAsc')return Number(a.x)-Number(b.x)||Number(a.y)-Number(b.y);if(mode==='coordDesc')return Number(b.x)-Number(a.x)||Number(b.y)-Number(a.y);if(mode==='type')return typeLabel(a.type).localeCompare(typeLabel(b.type),'ja')||a.eventAt-b.eventAt;if(mode==='label')return String(a.label||'').localeCompare(String(b.label||''),'ja')||a.eventAt-b.eventAt;return a.eventAt-b.eventAt;});}
+
+
+/* ---------- bulk add ---------- */
+var bulkList = [];
+
+function renderBulkList() {
+  var wrap = document.getElementById('bulkListWrap');
+  var area = document.getElementById('bulkListArea');
+  document.getElementById('bulkListCount').textContent = bulkList.length;
+  document.getElementById('bulkSaveCount').textContent = bulkList.length;
+  if (bulkList.length === 0) { wrap.style.display = 'none'; area.innerHTML = ''; return; }
+  wrap.style.display = 'block';
+  area.innerHTML = bulkList.map(function(c, i) {
+    return '<span style="display:inline-flex; align-items:center; gap:6px; background:#eceae2; border-radius:999px; padding:5px 6px 5px 12px; margin:0 6px 6px 0; font-size:12px;">' +
+      'X:' + c.x + ' Y:' + c.y +
+      ' <button onclick="removeBulkItem(' + i + ')" style="border:none; background:#fff; width:20px; height:20px; border-radius:50%; color:#b5442e; cursor:pointer; font-weight:700; font-size:12px; line-height:1;">✕</button></span>';
+  }).join('');
+}
+function removeBulkItem(i) { bulkList.splice(i, 1); renderBulkList(); }
+
+document.getElementById('openBulk').addEventListener('click', function() {
+  bulkList = [];
+  document.getElementById('bulk-x').value = '';
+  document.getElementById('bulk-y').value = '';
+  document.getElementById('bulkCoords').value = '';
+  renderBulkList();
+  document.getElementById('bulkPanel').classList.add('open');
+  document.getElementById('bulk-x').focus();
+});
+document.getElementById('closeBulk').addEventListener('click', function() {
+  document.getElementById('bulkPanel').classList.remove('open');
+});
+
+function addOneBulkCoord() {
+  var x = document.getElementById('bulk-x').value;
+  var y = document.getElementById('bulk-y').value;
+  x = x === '' ? null : Number(x);
+  y = y === '' ? null : Number(y);
+  if (x === null || y === null || isNaN(x) || isNaN(y)) { showAlert('座標を入力してください'); return; }
+  if (bulkList.some(function(c) { return c.x === x && c.y === y; })) {
+    showToast('すでにリストにあります');
+  } else {
+    bulkList.push({ x: x, y: y });
+    renderBulkList();
+  }
+  document.getElementById('bulk-x').value = '';
+  document.getElementById('bulk-y').value = '';
+  document.getElementById('bulk-x').focus();
+}
+document.getElementById('bulkAddOne').addEventListener('click', addOneBulkCoord);
+document.getElementById('bulk-y').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') { e.preventDefault(); addOneBulkCoord(); }
+});
+document.getElementById('bulk-x').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') { e.preventDefault(); document.getElementById('bulk-y').focus(); }
+});
+
+function parseBulkCoords(raw) {
+  return raw.split(/\r?\n/).map(function(line) {
+    line = line.trim();
+    if (!line) return null;
+    var m = line.match(/^\s*(-?\d+(?:\.\d+)?)\s*[,\/\s]\s*(-?\d+(?:\.\d+)?)\s*$/);
+    return m ? { x: Number(m[1]), y: Number(m[2]) } : null;
+  });
+}
+document.getElementById('bulkParsePaste').addEventListener('click', function() {
+  var raw = document.getElementById('bulkCoords').value.trim();
+  if (!raw) { showAlert('座標を入力してください'); return; }
+  var coords = parseBulkCoords(raw);
+  var invalid = [], addedCount = 0;
+  coords.forEach(function(c, i) {
+    if (!c || isNaN(c.x) || isNaN(c.y)) { invalid.push(i + 1); return; }
+    if (bulkList.some(function(b) { return b.x === c.x && b.y === c.y; })) return;
+    bulkList.push({ x: c.x, y: c.y });
+    addedCount++;
+  });
+  if (invalid.length) {
+    showAlert('読み取れない行があります: ' + invalid.join(', ') + '行目\n形式は「X,Y」または「X Y」です。それ以外の行はリストに追加しました。');
+  } else {
+    showToast(addedCount + '件をリストに追加しました');
+  }
+  document.getElementById('bulkCoords').value = '';
+  renderBulkList();
+});
+
+document.getElementById('bulkSave').addEventListener('click', async function() {
+  var type = document.getElementById('bulk-type').value;
+  if (bulkList.length === 0) { showAlert('登録する座標がありません'); return; }
+  var dup = [];
+  bulkList.forEach(function(c) {
+    if (findCoordDuplicate(type, c.x, c.y, null)) dup.push('X:' + c.x + ' / Y:' + c.y);
+  });
+  if (dup.length) {
+    var ok = await showConfirm('すでに登録済みの座標(' + typeLabel(type) + ')があります。\n' + dup.slice(0, 8).join('\n') + (dup.length > 8 ? '\n…ほか' + (dup.length - 8) + '件' : '') + '\n\n重複を除いて登録しますか?');
+    if (!ok) return;
+  }
+  var seen = {}, added = 0, now = Date.now();
+  bulkList.forEach(function(c) {
+    var key = c.x + '|' + c.y;
+    if (seen[key] || findCoordDuplicate(type, c.x, c.y, null)) return;
+    seen[key] = true;
+    var bulkEntry = { id: Date.now() + '-' + Math.random().toString(36).slice(2, 9), type: type, label: '', x: c.x, y: c.y, eventAt: now };
+    touchAqua(bulkEntry);
+    entries.push(bulkEntry);
+    added++;
+  });
+  saveEntries(); renderAll(); pushSyncSchedules();
+  bulkList = [];
+  renderBulkList();
+  document.getElementById('bulkCoords').value = '';
+  document.getElementById('bulkPanel').classList.remove('open');
+  showToast(added + '件を登録しました → 攻撃可能タブから時間を入力できます');
+});
+
+/* ---------- add panel(新規登録専用) ---------- */
+function updateRemainLabelForType() {
+  var type = document.getElementById('f-type').value;
+  if (isAquaFamily(type)) {
+    document.getElementById('remainLabel').textContent = '沈むまでの残り時間';
+    document.getElementById('remainHint').textContent = '沈んだあと' + (type === 'aqua' ? 72 : 32) + '時間後に再浮上すると仮定して自動計算します（' + (type === 'aqua' ? '72' : '32') + '時間は自動で加算されるので、画面に表示されている「沈むまで」の時間をそのまま入力）。空欄のまま保存すると「攻撃可能」タブに入り、あとから入力できます。';
+  } else {
+    document.getElementById('remainLabel').textContent = '現在の残り時間';
+    document.getElementById('remainHint').textContent = '画面に表示されている「攻撃可能になるまで」の時間を入力(例: 78時間ならそのまま78)。空欄のまま保存すると「攻撃可能」タブに入り、あとから残り時間を入力できます。';
+  }
+}
+document.getElementById('f-type').addEventListener('change', updateRemainLabelForType);
+
+function openPanel() {
+  document.getElementById('panel').classList.add('open');
+  document.getElementById('panelTitle').textContent = '新規登録';
+  document.getElementById('f-type').value = 'dragon';
+  document.getElementById('f-label').value = '';
+  document.getElementById('f-x').value = '';
+  document.getElementById('f-y').value = '';
+  document.getElementById('f-rh').value = '';
+  document.getElementById('f-rm').value = '';
+  updateRemainLabelForType();
+}
+function closePanel() { document.getElementById('panel').classList.remove('open'); }
+document.getElementById('openAdd').addEventListener('click', function() { openPanel(); });
+document.getElementById('cancelBtn').addEventListener('click', closePanel);
+
+function findCoordDuplicate(type, x, y, excludeId) {
+  return entries.find(function(e) { return e.type === type && e.x === x && e.y === y && e.id !== excludeId; });
+}
+
+document.getElementById('saveBtn').addEventListener('click', async function() {
+  var type = document.getElementById('f-type').value;
+  var label = document.getElementById('f-label').value.trim();
+  var x = document.getElementById('f-x').value;
+  var y = document.getElementById('f-y').value;
+  var rh = document.getElementById('f-rh').value;
+  var rm = document.getElementById('f-rm').value;
+
+  x = x === '' ? null : Number(x);
+  y = y === '' ? null : Number(y);
+  if (x === null || y === null || isNaN(x) || isNaN(y)) { showAlert('座標を入力してください'); return; }
+
+  var dup = findCoordDuplicate(type, x, y, null);
+  if (dup) {
+    var ok = await showConfirm('同じ座標(X:' + x + ' / Y:' + y + ')に登録済みの' + typeLabel(type) + 'があります。\n続けて登録しますか?');
+    if (!ok) return;
+  }
+  var now = Date.now();
+  var eventAt;
+  if (rh === '' && rm === '') {
+    eventAt = now;
+  } else {
+    var rhh = rh === '' ? 0 : Number(rh);
+    var rmm = rm === '' ? 0 : Number(rm);
+    var remainMs = (rhh * 3600 + rmm * 60) * 1000;
+    eventAt = intervalForType(type) ? (now + remainMs + intervalForType(type)) : (now + remainMs);
+  }
+  var newEntry = { id: Date.now() + '-' + Math.random().toString(36).slice(2, 7), type: type, label: label, x: x, y: y, eventAt: eventAt };
+  touchAqua(newEntry);
+  entries.push(newEntry);
+  saveEntries(); closePanel(); renderAll(); pushSyncSchedules();
+  showToast('追加しました');
+});
+
+/* ---------- インライン編集(カードを押した場所でそのまま編集) ---------- */
+var inlineEditId = null;
+
+function renderEditForm(e) {
+  var remainLabelText = isAquaFamily(e.type) ? '沈むまでの残り時間(空欄なら変更なし)' : '残り時間(空欄なら変更なし)';
+  var html = '<div class="card" style="border-color:#2c2c2a;">';
+  html += '  <h2 style="font-size:14px; margin:0 0 12px;">編集</h2>';
+  html += '  <div class="rowFields">';
+  html += '    <div class="field"><label>種類</label><select id="et-' + e.id + '">';
+  html += '      <option value="wildFortress"' + (e.type === 'wildFortress' ? ' selected' : '') + '>野生の要塞</option>';
+  html += '      <option value="fortress"' + (e.type === 'fortress' ? ' selected' : '') + '>砂漠の要塞</option>';
+  html += '      <option value="dragon"' + (e.type === 'dragon' ? ' selected' : '') + '>ドラゴン</option>';
+  html += '      <option value="aqua"' + (e.type === 'aqua' ? ' selected' : '') + '>大アクア</option>';
+  html += '      <option value="smallAqua"' + (e.type === 'smallAqua' ? ' selected' : '') + '>小アクア</option>';
+  html += '    </select></div>';
+  html += '    <div class="field"><label>ラベル</label><input type="text" id="el-' + e.id + '" value="' + escapeHtml(e.label || '') + '"></div>';
+  html += '  </div>';
+  html += '  <div class="rowFields">';
+  html += '    <div class="field"><label>X座標</label><input type="number" id="ex-' + e.id + '" value="' + e.x + '"></div>';
+  html += '    <div class="field"><label>Y座標</label><input type="number" id="ey-' + e.id + '" value="' + e.y + '"></div>';
+  html += '  </div>';
+  html += '  <div class="field"><label>' + remainLabelText + '</label>';
+  html += '    <div class="rowFields">';
+  html += '      <div class="field"><input type="number" id="eh-' + e.id + '" min="0" placeholder="時間"></div>';
+  html += '      <div class="field"><input type="number" id="em-' + e.id + '" min="0" max="59" placeholder="分"></div>';
+  html += '    </div></div>';
+  html += '  <div class="panelBtns">';
+  html += '    <button class="btnCancel" onclick="cancelInlineEdit()">キャンセル</button>';
+  html += '    <button class="btnSave" onclick="saveInlineEdit(\'' + e.id + '\')">保存</button>';
+  html += '  </div>';
+  html += '</div>';
+  return html;
+}
+
+function editEntry(id) {
+  inlineEditId = id;
+  renderAll();
+}
+function cancelInlineEdit() {
+  inlineEditId = null;
+  renderAll();
+}
+async function saveInlineEdit(id) {
+  var type = document.getElementById('et-' + id).value;
+  var label = document.getElementById('el-' + id).value.trim();
+  var x = document.getElementById('ex-' + id).value;
+  var y = document.getElementById('ey-' + id).value;
+  var rh = document.getElementById('eh-' + id).value;
+  var rm = document.getElementById('em-' + id).value;
+
+  x = x === '' ? null : Number(x);
+  y = y === '' ? null : Number(y);
+  if (x === null || y === null || isNaN(x) || isNaN(y)) { showAlert('座標を入力してください'); return; }
+
+  var idx = entries.findIndex(function(e) { return e.id === id; });
+  if (idx === -1) return;
+
+  var dup = findCoordDuplicate(type, x, y, id);
+  if (dup) {
+    var ok = await showConfirm('同じ座標(X:' + x + ' / Y:' + y + ')に登録済みの' + typeLabel(type) + 'があります。\nこのまま保存しますか?');
+    if (!ok) return;
+  }
+
+  var oldForSync = { type: entries[idx].type, x: entries[idx].x, y: entries[idx].y, label: entries[idx].label || '', eventAt: entries[idx].eventAt };
+  entries[idx].type = type;
+  entries[idx].label = label;
+  entries[idx].x = x;
+  entries[idx].y = y;
+  if (rh !== '' || rm !== '') {
+    var rhh = rh === '' ? 0 : Number(rh);
+    var rmm = rm === '' ? 0 : Number(rm);
+    var remainMs = (rhh * 3600 + rmm * 60) * 1000;
+    entries[idx].eventAt = intervalForType(type) ? (Date.now() + remainMs + intervalForType(type)) : (Date.now() + remainMs);
+    entries[idx].resultLogged = false;
+  }
+  if (isAquaFamily(oldForSync.type) && aquaKey(oldForSync) !== aquaKey(entries[idx])) addTombstone(oldForSync);
+  if (aquaKey(oldForSync) !== aquaKey(entries[idx]) || oldForSync.label !== (entries[idx].label || '') || oldForSync.eventAt !== entries[idx].eventAt) touchAqua(entries[idx]);
+
+  saveEntries();
+  inlineEditId = null;
+  renderAll(); pushSyncSchedules();
+  showToast('更新しました');
+}
+
+function updateReady(id) {
+  var hInput = document.getElementById('sh-' + id);
+  var mInput = document.getElementById('sm-' + id);
+  if (!hInput || !mInput) return;
+  var h = hInput.value === '' ? 0 : Number(hInput.value);
+  var m = mInput.value === '' ? 0 : Number(mInput.value);
+  if (!Number.isFinite(h) || !Number.isFinite(m) || h < 0 || m < 0 || m > 59) {
+    showAlert('時間・分を正しく入力してください（分は0〜59）');
+    return;
+  }
+  var idx = entries.findIndex(function(e) { return String(e.id) === String(id); });
+  if (idx === -1) return;
+  var type = entries[idx].type;
+  var remainMs = (h * 3600 + m * 60) * 1000;
+  // アクア系は入力した残り時間に再浮上間隔を加算。その他は入力時間をそのまま反映。
+  entries[idx].eventAt = Date.now() + remainMs + intervalForType(type);
+  entries[idx].resultLogged = false;
+  touchAqua(entries[idx]);
+  saveEntries();
+  renderAll(); pushSyncSchedules();
+  showToast('更新しました');
+}
+
+/* 攻撃結果の記録：座標は削除せず残したまま、履歴だけ追加する */
+async function recordAttackResult(id, result) {
+  var e = entries.find(function(x) { return x.id === id; });
+  if (!e || e.type === 'smallAqua' || e.type === 'aqua') return;
+  if (e.resultLogged) {
+    showAlert('この周期はすでに記録済みです。残り時間を更新すると、次の周期でまた記録できます。');
+    return;
+  }
+  var ok = await showConfirm('獲得できた記録を追加しますか？');
+  if (!ok) return;
+  // 小アクア・大アクアは獲得記録のみ行い、ルビー履歴には追加しない
+  var isAqua = e.type === 'smallAqua' || e.type === 'aqua';
+  if (!isAqua) {
+    var ruby = defaultRubyForType(e.type);
+    attackHistory.push({
+      id: Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+      entryId: e.id, type: e.type, label: e.label || '', x: e.x, y: e.y,
+      result: 'ruby', ruby: ruby, at: Date.now()
+    });
+    saveHistory();
+  }
+  e.resultLogged = true;
+  saveEntries();
+  renderAll();
+  renderStats();
+  setTimeout(function(){var input=document.getElementById('sh-'+id);if(input){input.focus();input.scrollIntoView({behavior:'smooth',block:'center'});}},50);
+  showToast(isAqua ? '獲得を記録しました（ルビー集計対象外） → 次回時間を入力' : '+' + ruby + 'ルビーを記録しました → 次回時間を入力');
+}
+
+async function deleteEntry(id) {
+  var ok = await showConfirm('この登録を削除しますか?');
+  if (!ok) return;
+  entries.filter(function(e) { return e.id === id; }).forEach(addTombstone);
+  entries = entries.filter(function(e) { return e.id !== id; });
+  saveEntries(); renderAll(); pushSyncSchedules();
+}
+
+document.getElementById('clearAquaCoordinates').addEventListener('click', async function() {
+  var targets = entries.filter(function(e) { return e.type === 'smallAqua' || e.type === 'aqua'; });
+  if (!targets.length) { showToast('削除する小アクア・大アクアの座標はありません'); return; }
+  var ok = await showConfirm('小アクア・大アクアの座標登録をすべて削除しますか？\n対象：小アクア ' + targets.filter(function(e){return e.type==='smallAqua';}).length + '件 / 大アクア ' + targets.filter(function(e){return e.type==='aqua';}).length + '件\n攻撃履歴・ルビー集計は削除されません。');
+  if (!ok) return;
+  targets.forEach(addTombstone);
+  entries = entries.filter(function(e) { return e.type !== 'smallAqua' && e.type !== 'aqua'; });
+  saveEntries(); renderAll(); renderStats();
+  showToast('小アクア・大アクアの座標を削除しました');
+});
+
+/* ---------- backup ---------- */
+document.getElementById('openBackup').addEventListener('click', function() {
+  document.getElementById('exportArea').value = JSON.stringify({ entries: entries, attackHistory: attackHistory, trackerSettings: trackerSettings });
+  document.getElementById('importArea').value = '';
+  document.getElementById('backupPanel').classList.add('open');
+});
+document.getElementById('closeBackup').addEventListener('click', function() {
+  document.getElementById('backupPanel').classList.remove('open');
+});
+document.getElementById('copyBtn').addEventListener('click', function() {
+  var area = document.getElementById('exportArea');
+  area.select(); area.setSelectionRange(0, 99999);
+  try { navigator.clipboard.writeText(area.value); showAlert('コピーしました。新しい場所に貼り付けてください。'); }
+  catch (e) { document.execCommand('copy'); showAlert('コピーしました。新しい場所に貼り付けてください。'); }
+});
+
+document.getElementById('downloadBtn').addEventListener('click', function() {
+  var data = JSON.stringify({ entries: entries, attackHistory: attackHistory, trackerSettings: trackerSettings });
+  var blob = new Blob([data], { type: 'application/json' });
+  var url = URL.createObjectURL(blob);
+  var d = new Date();
+  var fname = 'gge_tracker_backup_' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '_' + pad(d.getHours()) + pad(d.getMinutes()) + '.json';
+  var a = document.createElement('a');
+  a.href = url; a.download = fname;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function() { URL.revokeObjectURL(url); }, 2000);
+  showToast('ファイルを保存しました(' + fname + ')');
+});
+
+document.getElementById('importFileBtn').addEventListener('click', function() {
+  document.getElementById('importFileInput').click();
+});
+document.getElementById('importFileInput').addEventListener('change', function(e) {
+  var file = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(evt) { processImportRaw(evt.target.result); };
+  reader.onerror = function() { showAlert('ファイルを読み込めませんでした。'); };
+  reader.readAsText(file);
+});
+
+function processImportRaw(raw) {
+  raw = (raw || '').trim();
+  if (!raw) { showAlert('読み込むデータがありません'); return; }
+  var imported;
+  try { imported = JSON.parse(raw); }
+  catch (e) { showAlert('データの形式が正しくありません。書き出したファイル、またはコピーした内容をそのまま使ってください。'); return; }
+
+  var list = [];
+  if (Array.isArray(imported)) {
+    list = imported;
+  } else if (imported && Array.isArray(imported.entries)) {
+    imported.entries.forEach(function(e) {
+      list.push(Object.assign({}, e, { id: e.id, type: e.type, label: e.label || '', x: e.x, y: e.y, eventAt: e.eventAt !== undefined ? e.eventAt : e.attackableAt }));
+    });
+    if (Array.isArray(imported.aquaEntries)) {
+      imported.aquaEntries.forEach(function(e) {
+        list.push({ id: e.id || ('import-aqua-' + e.x + '-' + e.y), type: 'aqua', label: e.label || '', x: e.x, y: e.y, eventAt: e.eventAt !== undefined ? e.eventAt : e.surfaceAt });
+      });
+    }
+    // 旧形式のバックアップで種類ごとに分かれている座標配列も読み込む
+    [
+      { keys:['wildFortressEntries','wildFortresses','wildFortress'], type:'wildFortress', timeKeys:['eventAt','attackableAt','respawnAt','availableAt'] },
+      { keys:['fortressEntries','desertFortressEntries','fortresses','desertFortresses'], type:'fortress', timeKeys:['eventAt','attackableAt','respawnAt','availableAt'] },
+      { keys:['dragonEntries','dragons'], type:'dragon', timeKeys:['eventAt','attackableAt','respawnAt','availableAt'] },
+      { keys:['smallAquaEntries','smallAquas'], type:'smallAqua', timeKeys:['eventAt','surfaceAt','attackableAt','respawnAt'] }
+    ].forEach(function(def) {
+      def.keys.forEach(function(keyName) {
+        if (!Array.isArray(imported[keyName])) return;
+        imported[keyName].forEach(function(e, i) {
+          var tm;
+          for (var ti=0; ti<def.timeKeys.length; ti++) {
+            if (e[def.timeKeys[ti]] !== undefined) { tm=e[def.timeKeys[ti]]; break; }
+          }
+          list.push({
+            id: e.id || ('import-' + def.type + '-' + e.x + '-' + e.y + '-' + i),
+            type: def.type, label: e.label || '', x: e.x, y: e.y,
+            eventAt: tm !== undefined ? tm : Date.now()
+          });
+        });
+      });
+    });
+  }
+  if (imported && Array.isArray(imported.attackHistory)) {
+    imported.attackHistory.forEach(function(h) {
+      if (!attackHistory.some(function(x) { return x.id === h.id; })) attackHistory.push(h);
+    });
+  }
+  // 自分の城の座標・表示設定・距離フィルター設定もバックアップから復元
+  if (imported && imported.trackerSettings && typeof imported.trackerSettings === 'object') {
+    var incomingSettings = imported.trackerSettings;
+    trackerSettings.enabled = Object.assign({}, trackerSettings.enabled || {}, incomingSettings.enabled || {});
+    trackerSettings.near50 = Object.assign({}, trackerSettings.near50 || {}, incomingSettings.near50 || {});
+    trackerSettings.nearDistance = Object.assign({}, trackerSettings.nearDistance || {}, incomingSettings.nearDistance || {});
+    trackerSettings.homeCoords = Object.assign({}, trackerSettings.homeCoords || {}, incomingSettings.homeCoords || {});
+    ['dragon','fortress','wildFortress'].forEach(function(t) {
+      var h = trackerSettings.homeCoords[t] || {};
+      trackerSettings.homeCoords[t] = { x: h.x == null ? '' : h.x, y: h.y == null ? '' : h.y };
+    });
+    if (incomingSettings.homeX !== undefined) trackerSettings.homeX = incomingSettings.homeX;
+    if (incomingSettings.homeY !== undefined) trackerSettings.homeY = incomingSettings.homeY;
+    saveTrackerSettings();
+    [['dragon','homeDragonX','homeDragonY'],['fortress','homeFortressX','homeFortressY'],['wildFortress','homeWildFortressX','homeWildFortressY']].forEach(function(row) {
+      var h = trackerSettings.homeCoords[row[0]] || {x:'',y:''};
+      document.getElementById(row[1]).value = h.x == null ? '' : h.x;
+      document.getElementById(row[2]).value = h.y == null ? '' : h.y;
+    });
+    document.querySelectorAll('[data-tracktype]').forEach(function(c) { c.checked = trackerSettings.enabled[c.dataset.tracktype] !== false; });
+    document.querySelectorAll('[data-near50]').forEach(function(c) { c.checked = !!trackerSettings.near50[c.dataset.near50]; });
+    document.querySelectorAll('[data-neardistance]').forEach(function(c) { c.value = trackerSettings.nearDistance[c.dataset.neardistance] == null ? 50 : trackerSettings.nearDistance[c.dataset.neardistance]; });
+  }
+  // 読み込み時は既存データを重複追加せず、同じIDまたは種類＋座標の登録時間を更新する
+  var existingIds = {};
+  var existingCoords = {};
+  function coordKey(item) {
+    if (!item || item.type == null || item.x == null || item.y == null || item.x === '' || item.y === '') return null;
+    return String(item.type) + '|' + String(Number(item.x)) + '|' + String(Number(item.y));
+  }
+  entries.forEach(function(e, index) {
+    if (e.id != null) existingIds[e.id] = index;
+    var key = coordKey(e);
+    if (key !== null && existingCoords[key] === undefined) existingCoords[key] = index;
+  });
+  var added = 0;
+  var updated = 0;
+  var skipped = 0;
+  list.forEach(function(item) {
+    if (!item || !['wildFortress','fortress','dragon','aqua','smallAqua'].includes(item.type) || item.x == null || item.y == null) return;
+    if (!item.id) item.id = 'import-' + item.type + '-' + item.x + '-' + item.y;
+    var noTime = (item.eventAt == null || !Number.isFinite(Number(item.eventAt)));
+    if (noTime) item.eventAt = Date.now();
+    else item.eventAt = Number(item.eventAt);
+    var key = coordKey(item);
+    var index = existingIds[item.id];
+    if (index === undefined && key !== null) index = existingCoords[key];
+    if (index !== undefined) {
+      var oldEntry = entries[index];
+      // 同じ座標は「新しい時刻」を優先：読み込みデータが古い・同じ・時刻なしなら現在データを維持する
+      if (noTime || item.eventAt <= Number(oldEntry.eventAt)) { skipped++; return; }
+      var nextEntry = Object.assign({}, oldEntry, item);
+      if (item.eventAt !== undefined) nextEntry.eventAt = item.eventAt;
+      else if (item.attackableAt !== undefined) nextEntry.eventAt = item.attackableAt;
+      if (nextEntry.eventAt !== oldEntry.eventAt) nextEntry.resultLogged = false;
+      touchAqua(nextEntry);
+      entries[index] = nextEntry;
+      if (nextEntry.id != null) existingIds[nextEntry.id] = index;
+      var nextKey = coordKey(nextEntry);
+      if (nextKey !== null) existingCoords[nextKey] = index;
+      updated++;
+      return;
+    }
+    if (item.updatedAt == null) touchAqua(item);
+    entries.push(item);
+    existingIds[item.id] = entries.length - 1;
+    if (key !== null) existingCoords[key] = entries.length - 1;
+    added++;
+  });
+  saveEntries(); saveHistory(); renderAll(); renderStats(); pushSyncSchedules();
+  document.getElementById('backupPanel').classList.remove('open');
+  showAlert('新規追加 ' + added + '件、既存データ更新 ' + updated + '件、更新なし ' + skipped + '件。' + (skipped ? '\n（更新なし＝現在のデータの方が新しい、または同じ時刻だったもの）' : ''));
+}
+
+document.getElementById('importBtn').addEventListener('click', function() {
+  processImportRaw(document.getElementById('importArea').value);
+});
+
+/* ---------- render ---------- */
+function render() {
+  updateNearCounts();
+  var list = document.getElementById('list');
+  var now = Date.now();
+  var filtered = applyFilter(entries);
+  var notReady = filtered.filter(function(e) { return e.eventAt - now > 0; });
+  var sorted = sortEntries(notReady);
+  document.getElementById('resultSummary').textContent = filtered.length + '件中 ' + sorted.length + '件が攻撃待ち';
+
+  var dCount = entries.filter(function(e) { return e.type === 'dragon'; }).length;
+  var fCount = entries.filter(function(e) { return e.type === 'fortress'; }).length;
+  var aCount = entries.filter(function(e) { return e.type === 'aqua'; }).length;
+  document.getElementById('countSummary').textContent =
+    '登録: ドラゴン' + dCount + ' / 要塞' + fCount + ' / 嵐の島' + aCount + ' / 小アクア' + entries.filter(function(e){return e.type==='smallAqua';}).length + ' / 野生の要塞' + entries.filter(function(e){return e.type==='wildFortress';}).length + '(計' + entries.length + '件)';
+
+  if (sorted.length === 0) {
+    list.innerHTML = '<p class="empty">' + (entries.length === 0 ? 'まだ登録がありません<br>「＋ 新規登録」から追加してください' : '該当する登録はありません') + '</p>';
+    return;
+  }
+
+  var html = '';
+  sorted.forEach(function(e) {
+    if (e.id === inlineEditId) { html += renderEditForm(e); return; }
+    var remain = e.eventAt - now;
+    var target = new Date(e.eventAt);
+    var isAnyAqua = isAquaFamily(e.type);
+    html += '<div class="card" data-entry-id="' + escapeHtml(String(e.id)) + '">';
+    html += '  <div class="cardTop"><div><span class="tag ' + typeClass(e.type) + '">' + typeLabel(e.type) + '</span>' +
+            (e.label ? '<span class="cardLabel">' + escapeHtml(e.label) + '</span>' : '') + '</div></div>';
+    html += '  <div class="coord">座標 X:' + e.x + ' / Y:' + e.y + (coordDistance(e)!==null ? '　自分から約' + coordDistance(e).toFixed(1) : '') + '</div>';
+    html += '  <div class="timeBig">' + formatClock(target) + ' 頃</div>';
+    html += '  <div class="clockNote">' + (isAnyAqua ? '次の浮上まで ' : '残り ') + formatDuration(remain) + '</div>';
+    html += '  <div class="cardBtns">';
+    html += '    <button class="btnEdit" onclick="editEntry(\'' + e.id + '\')">編集</button>';
+    html += '    <button class="btnDelete" onclick="deleteEntry(\'' + e.id + '\')">削除</button>';
+    html += '  </div></div>';
+  });
+  list.innerHTML = html;
+}
+
+function renderReady() {
+  var list = document.getElementById('readyList');
+  var now = Date.now();
+  var readyTypeFilter = document.getElementById('readyTypeFilter').value;
+  var query = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+  // 攻撃可能タブは種類と検索文字列だけで絞り込み、距離フィルターは適用しない。
+  var filtered = entries.filter(function(e) {
+    if (trackerSettings.enabled[e.type] === false) return false;
+    if (readyTypeFilter !== 'all' && e.type !== readyTypeFilter) return false;
+    // 一覧タブと同じ距離フィルターを攻撃可能タブにも適用
+    if (nearFilterActive(e.type)) {
+      var dist = coordDistance(e);
+      var maxDist = Number(trackerSettings.nearDistance && trackerSettings.nearDistance[e.type]);
+      if (!Number.isFinite(maxDist) || maxDist < 0) maxDist = 50;
+      if (dist === null || dist > maxDist) return false;
+    }
+    if (query) {
+      // X座標とY座標のペア検索に対応
+      var nums = query.match(/-?\d+(?:\.\d+)?/g);
+      var pairMatch = nums && nums.length >= 2 && String(e.x) === nums[0] && String(e.y) === nums[1];
+      var hay = String(e.x) + ' ' + String(e.y) + ' ' + (e.label || '');
+      if (!pairMatch && hay.toLowerCase().indexOf(query) === -1) return false;
+    }
+    return true;
+  });
+  var ready = filtered.filter(function(e) { return e.eventAt - now <= 0; });
+  var sorted = sortEntries(ready);
+
+  var countEl = document.getElementById('readyCount');
+  if (sorted.length > 0) { countEl.textContent = sorted.length; countEl.style.display = 'inline-block'; }
+  else { countEl.style.display = 'none'; }
+
+  if (sorted.length === 0) {
+    list.innerHTML = '<p class="empty">攻撃可能(浮上)なものはありません</p>';
+    return;
+  }
+
+  var html = '';
+  sorted.forEach(function(e) {
+    if (e.id === inlineEditId) { html += renderEditForm(e); return; }
+    var isAnyAqua = isAquaFamily(e.type);
+    html += '<div class="card ready' + (isAnyAqua ? ' aqua' : '') + '" data-entry-id="' + escapeHtml(String(e.id)) + '">';
+    html += '  <div class="cardTop"><div><span class="tag ' + typeClass(e.type) + '">' + typeLabel(e.type) + '</span>' +
+            (e.label ? '<span class="cardLabel">' + escapeHtml(e.label) + '</span>' : '') + '</div></div>';
+    html += '  <div class="coord">座標 X:' + e.x + ' / Y:' + e.y + (coordDistance(e)!==null ? '　自分から約' + coordDistance(e).toFixed(1) : '') + '</div>';
+    html += '  <div class="timeBig readyText' + (isAnyAqua ? ' aqua' : '') + '">' + (isAnyAqua ? '浮上中' : '攻撃可能') + '</div>';
+    if (!isAnyAqua) {
+      if (e.resultLogged) {
+        html += '  <div class="readyNote">この周期の結果は記録済みです。残り時間を入力して「更新」すると、次の周期でまた記録できます。</div>';
+      } else {
+        html += '  <div class="resultBtns">';
+        html += '    <button class="btnSuccess" onclick="recordAttackResult(\'' + e.id + '\', \'success\')">✓ 取れた！記録する</button>';
+        html += '  </div>';
+      }
+    }
+    if (isAnyAqua) {
+      html += '  <div class="readyNote aqua">' + (e.type === 'aqua' ? '大アクア' : '小アクア') + 'は獲得記録を行わず、時間管理のみ行います。「沈むまでの残り時間」を入力してください。再浮上までの時間（大アクア72時間・小アクア32時間）は自動で加算します。</div>';
+    } else if (!e.resultLogged) {
+      html += '  <div class="readyNote">新規登録直後や攻撃後・狩られた後など、実際の画面に表示されている「再攻撃可能まで」の残り時間を入力してください。</div>';
+    }
+    html += '  <div class="readyInputs' + (isAnyAqua ? ' aqua' : '') + '">';
+    html += '    <div class="field"><label>時間</label><input type="number" min="0" id="sh-' + e.id + '"></div>';
+    html += '    <div class="field"><label>分</label><input type="number" min="0" max="59" id="sm-' + e.id + '"></div>';
+    html += '    <button class="btnReadyUpdate' + (isAnyAqua ? ' aqua' : '') + '" onclick="updateReady(\'' + e.id + '\')">更新</button>';
+    html += '  </div>';
+    html += '  <div class="cardBtns">';
+    html += '    <button class="btnEdit" onclick="editEntry(\'' + e.id + '\')">編集</button>';
+    html += '    <button class="btnDelete" onclick="deleteEntry(\'' + e.id + '\')">削除</button>';
+    html += '  </div></div>';
+  });
+  list.innerHTML = html;
+}
+
+var statsPeriod='today';
+function isCountedHistory(x){return x.result!=='taken'&&(Number(x.ruby)||0)>0;}
+function getMonthKey(ms){var d=new Date(ms);return d.getFullYear()+'-'+pad(d.getMonth()+1);}
+function renderStats(){
+  var dateInput=document.getElementById('statsDate');
+  if(!dateInput.value)dateInput.value=getLocalDateKey(Date.now());
+  var now=Date.now(),key=dateInput.value,list;
+  if(statsPeriod==='all') list=attackHistory.slice();
+  else if(statsPeriod==='month'){var mk=getMonthKey(now);list=attackHistory.filter(function(x){return getMonthKey(x.at)===mk;});}
+  else if(statsPeriod==='date') list=attackHistory.filter(function(x){return getLocalDateKey(x.at)===key;});
+  else {var tk=getLocalDateKey(now);list=attackHistory.filter(function(x){return getLocalDateKey(x.at)===tk;});}
+  list.sort(function(a,b){return b.at-a.at;});
+  var counted=list.filter(isCountedHistory),ruby=counted.reduce(function(sum,x){return sum+(Number(x.ruby)||0);},0),days=1;
+  if(statsPeriod==='month') days=new Date(now).getDate();
+  else if(statsPeriod==='all'&&counted.length){var first=Math.min.apply(null,counted.map(function(x){return x.at;})),fd=new Date(first),td=new Date(now);var firstDay=Date.UTC(fd.getFullYear(),fd.getMonth(),fd.getDate()),todayDay=Date.UTC(td.getFullYear(),td.getMonth(),td.getDate());days=Math.max(1,Math.floor((todayDay-firstDay)/86400000)+1);}
+  document.getElementById('rubyTotal').textContent=ruby.toLocaleString();
+  document.getElementById('rubyAverage').textContent=Math.round(ruby/days).toLocaleString();
+  var box=document.getElementById('historyList');
+  if(!list.length){box.innerHTML='<p class="empty">この期間の記録はありません</p>';return;}
+  box.innerHTML=list.map(function(x){var d=new Date(x.at);return '<div class="historyCard">'+(isCountedHistory(x)?'<div class="historyResult">+'+(Number(x.ruby)||0).toLocaleString()+'ルビー</div>':'<div class="historyResult taken">取られた <span style="font-size:11px;font-weight:600;">（集計対象外）</span></div>')+'<div class="historyMeta">'+typeLabel(x.type)+(x.label?' / '+escapeHtml(x.label):'')+'　X:'+x.x+' / Y:'+x.y+'　'+formatClock(d)+'</div><div class="cardBtns" style="margin-top:8px;"><button class="btnDelete" onclick="deleteHistory(\''+x.id+'\')">削除</button></div></div>';}).join('');
+}
+document.querySelectorAll('.periodBtn').forEach(function(btn){btn.addEventListener('click',function(){statsPeriod=btn.dataset.period;document.querySelectorAll('.periodBtn').forEach(function(b){b.classList.toggle('active',b===btn);});document.getElementById('statsDateWrap').style.display=statsPeriod==='date'?'block':'none';renderStats();});});
+document.getElementById('statsDate').addEventListener('change',renderStats);
+
+async function deleteHistory(id) {
+  var ok = await showConfirm('この記録を削除しますか?');
+  if (!ok) return;
+  var h = attackHistory.find(function(x) { return x.id === id; });
+  attackHistory = attackHistory.filter(function(x) { return x.id !== id; });
+  saveHistory();
+  if (h) {
+    var e = entries.find(function(x) { return x.id === h.entryId; });
+    if (e && e.resultLogged) { e.resultLogged = false; saveEntries(); renderAll(); }
+  }
+  renderStats();
+  showToast('記録を削除しました');
+}
+
+function renderAll() { updateNearWarning(); render(); renderReady(); }
+
+/* ---------- アクア同期（Googleスプレッドシート / GAS） ---------- */
+/* 同期対象は大アクア・小アクアのみ。その他のデータ・設定・履歴は一切送信しない。 */
+var SYNC_KEY = 'ggeAquaSyncSettings';
+var TOMB_KEY = 'ggeAquaTombstones';
+var TOMB_KEEP_MS = 60 * 24 * 3600 * 1000;
+var syncSettings = { url: '', token: '', lastSyncDate: '', lastSyncAt: 0 };
+var tombstones = [];
+var syncing = false;
+var SYNC_LOG_KEY = 'ggeAquaSyncLog';
+var syncLog = [];
+try { syncLog = JSON.parse(localStorage.getItem(SYNC_LOG_KEY) || '[]'); if (!Array.isArray(syncLog)) syncLog = []; } catch (e) { syncLog = []; }
+try { syncSettings = Object.assign(syncSettings, JSON.parse(localStorage.getItem(SYNC_KEY) || '{}')); } catch (e) {}
+try { tombstones = JSON.parse(localStorage.getItem(TOMB_KEY) || '[]'); if (!Array.isArray(tombstones)) tombstones = []; } catch (e) { tombstones = []; }
+
+function saveSyncSettings() { try { localStorage.setItem(SYNC_KEY, JSON.stringify(syncSettings)); } catch (e) {} }
+function saveTombstones() { try { localStorage.setItem(TOMB_KEY, JSON.stringify(tombstones)); } catch (e) {} }
+function aquaKey(o) { return o.type + '|' + Number(o.x) + '|' + Number(o.y); }
+function syncConfigured() { return !!(syncSettings.url && syncSettings.token); }
+function touchAqua(e) { if (e && isAquaFamily(e.type)) e.updatedAt = Date.now(); }
+/* 削除は「墓標」として記録し、同期で相手側にも伝える */
+function addTombstone(e) {
+  if (!e || !isAquaFamily(e.type) || e.x == null || e.y == null) return;
+  var k = aquaKey(e);
+  tombstones = tombstones.filter(function(t) { return aquaKey(t) !== k; });
+  tombstones.push({ type: e.type, x: Number(e.x), y: Number(e.y), updatedAt: Date.now() });
+  saveTombstones();
+}
+/* 両方とも生きているレコード同士：最後に編集した方（updatedAt が新しい方）を採用。
+   同じ（または未記録）なら eventAt（時刻）が新しい方 */
+function remoteWins(local, remote) {
+  var lu = Number(local.updatedAt) || 0, ru = Number(remote.updatedAt) || 0;
+  if (ru !== lu) return ru > lu;
+  return (Number(remote.eventAt) || 0) > (Number(local.eventAt) || 0);
+}
+function applyRemoteItems(items, changes) {
+  changes = changes || [];
+  var changed = 0;
+  items.forEach(function(r) {
+    if (!r || !isAquaFamily(r.type) || !Number.isFinite(Number(r.x)) || !Number.isFinite(Number(r.y))) return;
+    var k = aquaKey(r), ru = Number(r.updatedAt) || 0;
+    var locals = entries.filter(function(e) { return isAquaFamily(e.type) && aquaKey(e) === k; });
+    if (r.deleted) {
+      var newest = locals.reduce(function(m, l) { return Math.max(m, Number(l.updatedAt) || 0); }, 0);
+      if (locals.length && newest > ru) return;            // こちらの登録の方が新しい → 削除は無視
+      if (locals.length) { entries = entries.filter(function(e) { return locals.indexOf(e) === -1; }); changed++; changes.push({ kind: 'delete', type: r.type, x: Number(r.x), y: Number(r.y) }); }
+      tombstones = tombstones.filter(function(t) { return aquaKey(t) !== k; });
+      tombstones.push({ type: r.type, x: Number(r.x), y: Number(r.y), updatedAt: ru });
+      return;
+    }
+    if (!Number.isFinite(Number(r.eventAt))) return;
+    var tomb = tombstones.find(function(t) { return aquaKey(t) === k; });
+    if (!locals.length) {
+      if (tomb && (Number(tomb.updatedAt) || 0) >= ru) return;   // こちらで削除済み（相手の登録の方が古い）
+      entries.push({ id: 'sync-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7), type: r.type, label: r.label || '', x: Number(r.x), y: Number(r.y), eventAt: Number(r.eventAt), updatedAt: ru });
+      tombstones = tombstones.filter(function(t) { return aquaKey(t) !== k; });
+      changed++;
+      changes.push({ kind: 'add', type: r.type, x: Number(r.x), y: Number(r.y), to: Number(r.eventAt) });
+      return;
+    }
+    var l = locals[0];
+    if (remoteWins(l, r)) {
+      var fromAt = Number(l.eventAt);
+      changes.push({ kind: 'update', type: r.type, x: Number(r.x), y: Number(r.y), from: fromAt, to: Number(r.eventAt) });
+      l.eventAt = Number(r.eventAt); l.updatedAt = ru; l.label = r.label || l.label || '';
+      changed++;
+    }
+  });
+  return changed;
+}
+function saveSyncLog() { try { localStorage.setItem(SYNC_LOG_KEY, JSON.stringify(syncLog)); } catch (e) {} }
+function addSyncLog(rec) { syncLog.push(rec); if (syncLog.length > 40) syncLog = syncLog.slice(-40); saveSyncLog(); }
+function renderSyncLog() {
+  var box = document.getElementById('syncLogBox'), body = document.getElementById('syncLogBody');
+  if (!box || !body) return;
+  box.style.display = syncConfigured() ? 'block' : 'none';
+  if (!syncLog.length) { body.innerHTML = '<p class="miniLabel" style="margin:0;">まだ同期履歴はありません。</p>'; return; }
+  var label = { add: '＋追加', update: '✎更新', delete: '✕削除' };
+  body.innerHTML = syncLog.slice().reverse().map(function(l) {
+    var ch = l.changes || [];
+    var n = { add: 0, update: 0, delete: 0 };
+    ch.forEach(function(c) { n[c.kind]++; });
+    var head = '<b>' + escapeHtml(formatClock(new Date(l.at))) + '</b>（' + (l.auto ? '自動' : '手動') + '）　' +
+      (ch.length ? '相手の更新 ' + ch.length + '件（追加' + n.add + '・更新' + n.update + '・削除' + n.delete + '）' : '相手の更新なし') +
+      '　<span style="color:#888;">送信 ' + (l.sent || 0) + '件</span>';
+    var rows = ch.map(function(c) {
+      var t = typeLabel(c.type) + ' (' + c.x + ',' + c.y + ')';
+      var tm = '';
+      if (c.kind === 'add') tm = ' → 次の浮上 ' + formatClock(new Date(c.to));
+      if (c.kind === 'update') tm = ' → 次の浮上 ' + formatClock(new Date(c.to)) + '（旧 ' + formatClock(new Date(c.from)) + '）';
+      return '<div style="padding-left:12px;">' + label[c.kind] + ' ' + escapeHtml(t) + escapeHtml(tm) + '</div>';
+    }).join('');
+    return '<div style="padding:6px 0; border-bottom:1px solid #eee;">' + head + rows + '</div>';
+  }).join('');
+}
+function syncStatusText() {
+  if (!syncConfigured()) return '同期：未設定';
+  if (!syncSettings.lastSyncAt) return '同期：設定済み（まだ同期していません）';
+  return '同期：設定済み／最終同期 ' + formatClock(new Date(syncSettings.lastSyncAt));
+}
+function updateSyncUI() {
+  renderSyncLog();
+  var btn = document.getElementById('syncNowBtn');
+  if (btn) btn.style.display = syncConfigured() ? 'block' : 'none';
+  var st = document.getElementById('syncStatus');
+  if (st) st.textContent = syncStatusText();
+}
+async function syncAquaNow(auto) {
+  if (!syncConfigured()) { if (!auto) showAlert('先に「表示・記録設定」で同期URLと合言葉を保存してください'); return false; }
+  if (syncing) return false;
+  syncing = true;
+  var btn = document.getElementById('syncNowBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '🔄 同期中…'; }
+  try {
+    var now = Date.now();
+    tombstones = tombstones.filter(function(t) { return now - (Number(t.updatedAt) || 0) < TOMB_KEEP_MS; });
+    var items = [];
+    entries.forEach(function(e) {
+      if (!isAquaFamily(e.type) || !Number.isFinite(Number(e.x)) || !Number.isFinite(Number(e.y)) || !Number.isFinite(Number(e.eventAt))) return;
+      items.push({ type: e.type, x: Number(e.x), y: Number(e.y), label: e.label || '', eventAt: Number(e.eventAt), updatedAt: Number(e.updatedAt) || 0, deleted: false });
+    });
+    tombstones.forEach(function(t) {
+      var newer = entries.some(function(e) { return isAquaFamily(e.type) && aquaKey(e) === aquaKey(t) && (Number(e.updatedAt) || 0) > (Number(t.updatedAt) || 0); });
+      if (!newer) items.push({ type: t.type, x: t.x, y: t.y, updatedAt: Number(t.updatedAt) || 0, deleted: true });
+    });
+    // text/plain で送ることで CORS のプリフライトを避ける（GASウェブアプリ向け）
+    var res = await fetch(syncSettings.url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'sync', token: syncSettings.token, items: items }) });
+    var text = await res.text(), data;
+    try { data = JSON.parse(text); } catch (pe) { throw new Error('GASから正しい応答がありません。ウェブアプリの公開設定（アクセスできるユーザー：全員）とURLを確認してください。'); }
+    if (!data || !data.ok) throw new Error(data && data.error ? data.error : 'サーバーの応答が不正です');
+    var changes = [];
+    var changed = applyRemoteItems(Array.isArray(data.items) ? data.items : [], changes);
+    addSyncLog({ at: Date.now(), auto: !!auto, sent: items.filter(function(i) { return !i.deleted; }).length, changes: changes });
+    saveEntries(); saveTombstones();
+    syncSettings.lastSyncDate = getLocalDateKey(Date.now()); syncSettings.lastSyncAt = Date.now(); saveSyncSettings();
+    renderAll(); updateSyncUI();
+    showToast(auto ? '🔄 本日のアクアデータを同期しました' + (changed ? '（相手の更新 ' + changed + '件）' : '') : '🔄 同期しました（相手の更新 ' + changed + '件を反映）');
+    return true;
+  } catch (err) {
+    if (auto) showToast('アクアの自動同期に失敗しました');
+    else showAlert('同期できませんでした。\n' + (err && err.message ? err.message : err));
+    return false;
+  } finally {
+    syncing = false;
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 アクアを今すぐ同期'; }
+  }
+}
+function autoSyncIfNeeded() {
+  if (syncConfigured() && syncSettings.lastSyncDate !== getLocalDateKey(Date.now())) syncAquaNow(true);
+}
+document.getElementById('syncNowBtn').addEventListener('click', function() { syncAquaNow(false); });
+document.getElementById('syncSaveBtn').addEventListener('click', function() {
+  var url = document.getElementById('syncUrl').value.trim();
+  var token = document.getElementById('syncToken').value.trim();
+  if (!url && !token) {
+    syncSettings = { url: '', token: '', lastSyncDate: '', lastSyncAt: 0 };
+    saveSyncSettings(); updateSyncUI(); showToast('同期を解除しました');
+    return;
+  }
+  if (!/^https:\/\//.test(url) || !token) { showAlert('同期URL（https://〜）と合言葉の両方を入力してください'); return; }
+  if (url !== syncSettings.url || token !== syncSettings.token) { syncSettings.lastSyncDate = ''; syncSettings.lastSyncAt = 0; }
+  syncSettings.url = url; syncSettings.token = token;
+  saveSyncSettings(); updateSyncUI();
+  syncAquaNow(false);
+});
+document.getElementById('syncLogClear').addEventListener('click', function() { syncLog = []; saveSyncLog(); renderSyncLog(); });
+document.addEventListener('visibilitychange', function() { if (document.visibilityState === 'visible') autoSyncIfNeeded(); });
+
+/* ---------- PWA + private Web Push schedules ---------- */
+var PUSH_DEVICE_ID_KEY = 'ggePushDeviceId';
+var PUSH_DEVICE_TOKEN_KEY = 'ggePushDeviceToken';
+var PUSH_FIRED_KEY = 'ggeForegroundPushFired';
+var pushRegistration = null;
+var pushSyncTimer = null;
+var foregroundFired = {};
+try { foregroundFired = JSON.parse(localStorage.getItem(PUSH_FIRED_KEY) || '{}') || {}; } catch(e) { foregroundFired = {}; }
+function pushDeviceId() {
+  var id = localStorage.getItem(PUSH_DEVICE_ID_KEY);
+  if (!id) { id = 'dev-' + randomToken(18); localStorage.setItem(PUSH_DEVICE_ID_KEY, id); }
+  return id;
+}
+function pushDeviceToken() {
+  var token = localStorage.getItem(PUSH_DEVICE_TOKEN_KEY);
+  if (!token) { token = randomToken(32); localStorage.setItem(PUSH_DEVICE_TOKEN_KEY, token); }
+  return token;
+}
+function randomToken(bytes) {
+  var a = new Uint8Array(bytes); crypto.getRandomValues(a);
+  return Array.from(a).map(function(x){return x.toString(16).padStart(2,'0');}).join('');
+}
+function urlBase64ToUint8Array(base64String) {
+  var padding = '='.repeat((4 - base64String.length % 4) % 4);
+  var base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  var raw = atob(base64); var output = new Uint8Array(raw.length);
+  for (var i=0;i<raw.length;i++) output[i] = raw.charCodeAt(i);
+  return output;
+}
+function pushApiUrl(path) {
+  var base = String(trackerSettings.pushApiBaseUrl || '').trim().replace(/\/$/, '');
+  return base ? base + '/' + path : '';
+}
+function pushStatus(message) { var el = document.getElementById('pushStatus'); if (el) el.textContent = message; }
+function isPrivatePushType(type) { return ['dragon','fortress','wildFortress'].indexOf(type) !== -1; }
+function pushDistanceAllowed(e) {
+  if (!trackerSettings.pushNearOnly) return true;
+  var t = e.type;
+  if (!trackerSettings.near50 || !trackerSettings.near50[t] || !hasHome(t)) return false;
+  var d = coordDistance(e); var limit = Number(trackerSettings.nearDistance && trackerSettings.nearDistance[t]);
+  if (!Number.isFinite(limit) || limit < 0) limit = 50;
+  return d !== null && d <= limit;
+}
+function pushOffset() { var n = Number(trackerSettings.pushOffsetMinutes); return [0,1,3,5,10].indexOf(n) >= 0 ? n : 3; }
+function pushSchedulesFromEntries() {
+  var now = Date.now(); var offset = pushOffset();
+  return entries.filter(function(e) {
+    return isPrivatePushType(e.type) && trackerSettings.pushTypes[e.type] !== false && Number.isFinite(Number(e.eventAt)) && Number(e.eventAt) > now - 60000 && pushDistanceAllowed(e);
+  }).map(function(e) {
+    var distance = coordDistance(e);
+    return { id:String(e.id), type:e.type, label:String(e.label || ''), x:Number(e.x), y:Number(e.y), eventAt:Number(e.eventAt), dueAt:Math.max(now, Number(e.eventAt) - offset*60000), offsetMinutes:offset, distance:distance === null ? null : Math.round(distance*10)/10 };
+  });
+}
+async function postPushApi(path, payload) {
+  var url = pushApiUrl(path);
+  if (!url) throw new Error('通知サーバーURLを設定してください');
+  var res = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(Object.assign({deviceId:pushDeviceId(), deviceToken:pushDeviceToken()}, payload || {}))});
+  var data = await res.json().catch(function(){return {};});
+  if (!res.ok || !data.ok) throw new Error(data.error || ('HTTP ' + res.status));
+  return data;
+}
+async function pushSyncSchedules() {
+  if (!trackerSettings.pushApiBaseUrl || !trackerSettings.pushVapidPublicKey) return;
+  if (pushSyncTimer) clearTimeout(pushSyncTimer);
+  pushSyncTimer = setTimeout(async function() {
+    try {
+      await postPushApi('sync-schedules', { schedules:pushSchedulesFromEntries() });
+      pushStatus('通知設定：サーバー同期済み（この端末の要塞・ドラゴンのみ）');
+    } catch(e) { pushStatus('通知設定：サーバー同期エラー（' + (e.message || e) + '）'); }
+  }, 500);
+}
+async function enableWebPush() {
+  try {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) throw new Error('このブラウザはWeb Pushに対応していません');
+    if (!window.isSecureContext) throw new Error('HTTPSのURL（GitHub Pages等）で開いてください');
+    if (!trackerSettings.pushApiBaseUrl || !trackerSettings.pushVapidPublicKey) {
+      trackerSettings.pushApiBaseUrl = document.getElementById('pushApiBaseUrl').value.trim().replace(/\/$/,'');
+      trackerSettings.pushVapidPublicKey = document.getElementById('pushVapidPublicKey').value.trim();
+      saveTrackerSettings();
+    }
+    if (!trackerSettings.pushApiBaseUrl || !trackerSettings.pushVapidPublicKey) throw new Error('通知サーバーURLとVAPID公開鍵を入力し、通知設定を保存してください');
+    var permission = await Notification.requestPermission();
+    if (permission !== 'granted') throw new Error('ブラウザ通知が許可されていません');
+    pushRegistration = await navigator.serviceWorker.register('./sw.js');
+    await navigator.serviceWorker.ready;
+    var sub = await pushRegistration.pushManager.getSubscription();
+    if (!sub) sub = await pushRegistration.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:urlBase64ToUint8Array(trackerSettings.pushVapidPublicKey)});
+    await postPushApi('register-push', {subscription:sub.toJSON()});
+    await postPushApi('sync-schedules', {schedules:pushSchedulesFromEntries()});
+    pushStatus('通知：許可済み・有効（この端末専用）');
+    showToast('プッシュ通知を有効にしました');
+  } catch(e) {
+    pushStatus('通知を有効化できません：' + (e.message || e));
+    showAlert('プッシュ通知を有効にできませんでした。\n' + (e.message || e));
+  }
+}
+function initPushSettingsUI() {
+  var $ = function(id){return document.getElementById(id);};
+  $('pushApiBaseUrl').value = trackerSettings.pushApiBaseUrl || '';
+  $('pushVapidPublicKey').value = trackerSettings.pushVapidPublicKey || '';
+  $('pushTypeDragon').checked = trackerSettings.pushTypes.dragon !== false;
+  $('pushTypeFortress').checked = trackerSettings.pushTypes.fortress !== false;
+  $('pushTypeWildFortress').checked = trackerSettings.pushTypes.wildFortress !== false;
+  $('pushOffsetMinutes').value = String(pushOffset());
+  $('pushNearOnly').checked = !!trackerSettings.pushNearOnly;
+  $('foregroundSound').checked = trackerSettings.foregroundSound !== false;
+  $('savePushSettingsBtn').addEventListener('click', function(){
+    trackerSettings.pushApiBaseUrl = $('pushApiBaseUrl').value.trim().replace(/\/$/,'');
+    trackerSettings.pushVapidPublicKey = $('pushVapidPublicKey').value.trim();
+    trackerSettings.pushTypes = {dragon:$('pushTypeDragon').checked,fortress:$('pushTypeFortress').checked,wildFortress:$('pushTypeWildFortress').checked};
+    trackerSettings.pushOffsetMinutes = Number($('pushOffsetMinutes').value);
+    trackerSettings.pushNearOnly = $('pushNearOnly').checked;
+    trackerSettings.foregroundSound = $('foregroundSound').checked;
+    saveTrackerSettings();
+    pushSyncSchedules();
+    showToast('通知設定を保存しました');
+  });
+  $('enablePushBtn').addEventListener('click', enableWebPush);
+  var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) && !navigator.standalone;
+  if (isIOS) {
+    $('iosPushHint').style.display = 'block';
+    pushStatus('iPhone：ホーム画面に追加してから通知を有効化してください');
+  } else if (!('Notification' in window)) pushStatus('通知：このブラウザは通知APIに対応していません');
+  else if (Notification.permission === 'granted') pushStatus('通知：許可済み（Push登録状態を確認するには有効化ボタンを押してください）');
+  else if (Notification.permission === 'denied') pushStatus('通知：ブロック中。Chromeのサイト設定で通知を許可してください');
+  else pushStatus('通知：未許可。HTTPSで「プッシュ通知を許可・有効化する」を押してください');
+}
+function playPushTone() {
+  if (trackerSettings.foregroundSound === false) return;
+  try {
+    var AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    var ctx = new AudioCtx(); var osc = ctx.createOscillator(); var gain = ctx.createGain();
+    osc.type = 'sine'; osc.frequency.value = 880; gain.gain.value = 0.07;
+    osc.connect(gain); gain.connect(ctx.destination); osc.start();
+    setTimeout(function(){osc.stop();ctx.close();},180);
+  } catch(e) {}
+}
+function fireForegroundNotifications() {
+  var now = Date.now(); var offset = pushOffset();
+  entries.forEach(function(e){
+    if (!isPrivatePushType(e.type) || trackerSettings.pushTypes[e.type] === false || !pushDistanceAllowed(e)) return;
+    var at = Number(e.eventAt); if (!Number.isFinite(at)) return;
+    var due = at - offset*60000;
+    if (now < due || now > at + 60000) return;
+    var key = String(e.id) + ':' + String(at) + ':' + String(offset);
+    if (foregroundFired[key]) return;
+    foregroundFired[key] = now;
+    var title = (offset === 0 ? '【攻撃可能】' : '【あと' + offset + '分】') + typeLabel(e.type) + ' (X:' + e.x + ' / Y:' + e.y + ')';
+    var body = (e.label ? 'ラベル: ' + e.label + ' / ' : '') + '予定時刻: ' + new Date(at).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
+    var d = coordDistance(e); if (d !== null) body += '（自分から約' + d.toFixed(1) + '）';
+    if ('Notification' in window && Notification.permission === 'granted' && pushRegistration) pushRegistration.showNotification(title,{body:body,tag:key,data:{url:'./?tab=ready&entryId='+encodeURIComponent(String(e.id))}}).catch(function(){});
+    else showToast(title + ' / ' + body);
+    playPushTone();
+  });
+  var keys = Object.keys(foregroundFired);
+  if (keys.length > 500) keys.slice(0, keys.length-300).forEach(function(k){delete foregroundFired[k];});
+  try { localStorage.setItem(PUSH_FIRED_KEY,JSON.stringify(foregroundFired)); } catch(e) {}
+}
+async function registerPwaAndSync() {
+  if ('serviceWorker' in navigator && window.isSecureContext) {
+    try { pushRegistration = await navigator.serviceWorker.register('./sw.js'); } catch(e) {}
+  }
+  if (trackerSettings.pushApiBaseUrl && trackerSettings.pushVapidPublicKey && Notification.permission === 'granted') {
+    try {
+      if (!pushRegistration) pushRegistration = await navigator.serviceWorker.ready;
+      var sub = await pushRegistration.pushManager.getSubscription();
+      if (sub) await postPushApi('register-push',{subscription:sub.toJSON()});
+      await pushSyncSchedules();
+    } catch(e) { pushStatus('通知の同期に失敗しました：' + (e.message || e)); }
+  }
+  var params = new URLSearchParams(location.search);
+  if (params.get('tab') === 'ready' || params.get('entryId')) switchToTab('ready');
+  if (params.get('entryId')) setTimeout(function(){var el=document.querySelector('[data-entry-id="'+CSS.escape(params.get('entryId'))+'"]');if(el)el.scrollIntoView({behavior:'smooth',block:'center'});},500);
+}
+
+/* ---------- init & ticker ---------- */
+migrateIfNeeded();
+loadEntries();
+loadHistory();
+document.getElementById('typeSettings').innerHTML = [
+ ['dragon','ドラゴン'],['fortress','砂漠の要塞'],['wildFortress','野生の要塞'],['aqua','嵐の島（大アクア）'],['smallAqua','小アクア']
+].map(function(x){var distanceType=['dragon','fortress','wildFortress'].indexOf(x[0])!==-1;var limit=Number(trackerSettings.nearDistance&&trackerSettings.nearDistance[x[0]]);if(!Number.isFinite(limit)||limit<0)limit=50;return '<div style="padding:7px 0;border-bottom:1px solid #e5e5e5;"><label style="display:flex;gap:8px;align-items:center;margin:4px 0;color:#2c2c2a;"><input type="checkbox" data-tracktype="'+x[0]+'" '+(trackerSettings.enabled[x[0]]!==false?'checked':'')+'>'+x[1]+'を表示</label>'+(distanceType?'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:4px 0 4px 24px;color:#555;font-size:13px;"><label style="display:flex;gap:6px;align-items:center;"><input type="checkbox" data-near50="'+x[0]+'" '+(trackerSettings.near50[x[0]]?'checked':'')+'>距離上限以内のみ表示</label><input type="number" min="0" step="1" data-neardistance="'+x[0]+'" value="'+limit+'" style="width:76px;padding:5px;border:1px solid #ccc;border-radius:6px;"><span>以内</span></div>':'')+'</div>';}).join('');
+[['dragon','homeDragonX','homeDragonY'],['fortress','homeFortressX','homeFortressY'],['wildFortress','homeWildFortressX','homeWildFortressY']].forEach(function(row){var h=trackerSettings.homeCoords[row[0]]||{x:'',y:''};document.getElementById(row[1]).value=h.x==null?'':h.x;document.getElementById(row[2]).value=h.y==null?'':h.y;});
+document.getElementById('saveSettings').addEventListener('click',function(){
+ document.querySelectorAll('[data-tracktype]').forEach(function(c){trackerSettings.enabled[c.dataset.tracktype]=c.checked;});
+ document.querySelectorAll('[data-near50]').forEach(function(c){trackerSettings.near50[c.dataset.near50]=c.checked;});
+ document.querySelectorAll('[data-neardistance]').forEach(function(c){var v=Number(c.value);trackerSettings.nearDistance[c.dataset.neardistance]=(c.value.trim()===''||!Number.isFinite(v)||v<0)?50:v;});
+ trackerSettings.homeCoords = trackerSettings.homeCoords || {};
+ [['dragon','homeDragonX','homeDragonY'],['fortress','homeFortressX','homeFortressY'],['wildFortress','homeWildFortressX','homeWildFortressY']].forEach(function(row){trackerSettings.homeCoords[row[0]]={x:document.getElementById(row[1]).value,y:document.getElementById(row[2]).value};});
+ saveTrackerSettings();updateNearCounts();renderAll();pushSyncSchedules();showToast('設定を保存しました');
+});
+document.getElementById('statsDate').value = getLocalDateKey(Date.now());
+document.getElementById('syncUrl').value = syncSettings.url || '';
+document.getElementById('syncToken').value = syncSettings.token || '';
+initPushSettingsUI();
+updateSyncUI();
+renderAll();
+renderStats();
+autoSyncIfNeeded();
+registerPwaAndSync();
+
+setInterval(function() {
+  var active = document.activeElement;
+  var containers = [document.getElementById('list'), document.getElementById('readyList')];
+  var inInput = containers.some(function(c) { return c && c.contains(active); });
+  if (inInput) return;
+  renderAll();
+  fireForegroundNotifications();
+}, 1000);
+</script>
+</body>
+</html>
