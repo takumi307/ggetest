@@ -1,7 +1,14 @@
 import { defineStore } from 'pinia'
-import { reactive } from 'vue'
+import { ref, reactive } from 'vue'
 
 export const useUiStore = defineStore('ui', () => {
+  /* タブ（main / ready / stats / settings） */
+  const tab = ref('main')
+  function goTab(t) {
+    tab.value = t
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   const toast = reactive({ show: false, message: '' })
   let toastTimer = null
   function showToast(message) {
@@ -29,5 +36,5 @@ export const useUiStore = defineStore('ui', () => {
   const showAlert = (message) => showModal(message, false)
   const showConfirm = (message) => showModal(message, true)
 
-  return { toast, modal, showToast, showModal, closeModal, showAlert, showConfirm }
+  return { tab, goTab, toast, modal, showToast, showModal, closeModal, showAlert, showConfirm }
 })
