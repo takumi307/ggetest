@@ -58,7 +58,7 @@ export const SYNC_CHANNELS = {
     types: ['aqua', 'smallAqua'],
     settingsKey: 'ggeAquaSyncSettings',
     tombKey: 'ggeAquaTombstones',
-    intervalMs: 0, // 0 = 1日1回（日付が変わって最初に開いた時）
+    intervalMs: 5 * 60 * 1000, // 5分おき（ページを開いている間）
     defaults: { url: '', token: '', lastSyncDate: '', lastSyncAt: 0 }
   },
   fort: {
