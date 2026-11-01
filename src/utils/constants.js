@@ -39,12 +39,6 @@ export const DISTANCE_TYPE_LIST = [
   ['wildFortress', '野生の要塞']
 ]
 
-export const HOME_COORD_FIELDS = [
-  { type: 'dragon', title: 'ドラゴン用の自分の座標' },
-  { type: 'fortress', title: '砂漠の要塞用の自分の座標' },
-  { type: 'wildFortress', title: '野生の要塞用の自分の座標' }
-]
-
 export const SORT_OPTIONS = [
   { value: 'timeAsc', label: '攻撃可能になる順' },
   { value: 'timeDesc', label: '攻撃可能になる遅い順' },
@@ -56,7 +50,7 @@ export const SORT_OPTIONS = [
 
 export const CHANNEL_IDS = ['aqua', 'fort']
 
-/* 同期チャンネル：①アクア（大・小） ②要塞・ドラゴン */
+/* 同期チャンネル：①アクア（大・小・全員で共通） ②要塞・ドラゴン（ユーザーごと） */
 export const SYNC_CHANNELS = {
   aqua: {
     id: 'aqua',
@@ -65,7 +59,6 @@ export const SYNC_CHANNELS = {
     settingsKey: 'ggeAquaSyncSettings',
     tombKey: 'ggeAquaTombstones',
     intervalMs: 0, // 0 = 1日1回（日付が変わって最初に開いた時）
-    btnLabel: '🔄 アクアを今すぐ同期',
     defaults: { url: '', token: '', lastSyncDate: '', lastSyncAt: 0 }
   },
   fort: {
@@ -75,11 +68,14 @@ export const SYNC_CHANNELS = {
     settingsKey: 'ggeFortSyncSettings',
     tombKey: 'ggeFortTombstones',
     intervalMs: 5 * 60 * 1000, // 5分おき（ページを開いている間）
-    btnLabel: '🔄 要塞・ドラゴンを今すぐ同期',
-    defaults: {
-      url: '', token: '', lastSyncDate: '', lastSyncAt: 0,
-      mode: 'sync', histCursor: 0, histUnsupported: false,
-      leadMin: 10, quietOn: false, quietStart: 0, quietEnd: 7, digest: true
-    }
+    defaults: { url: '', token: '', lastSyncDate: '', lastSyncAt: 0, histCursor: 0, histUnsupported: false }
   }
 }
+
+/* Discord通知の対象にできる種類（通知設定の画面で使う） */
+export const NOTIFY_TYPE_LIST = {
+  aqua: [['aqua', '大アクア'], ['smallAqua', '小アクア']],
+  fort: [['dragon', 'ドラゴン'], ['fortress', '砂漠の要塞'], ['wildFortress', '野生の要塞']]
+}
+
+export const LEAD_OPTIONS = [0, 5, 10, 15, 20, 30, 45, 60]
