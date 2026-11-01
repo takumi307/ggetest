@@ -132,3 +132,76 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: #999790
 /* Vue移植で追加（元のインラインstyleを置き換えた補助クラス） */
 .bulkChip { display: inline-flex; align-items: center; gap: 6px; background: #eceae2; border-radius: 999px; padding: 5px 6px 5px 12px; margin: 0 6px 6px 0; font-size: 12px; }
 .bulkChip button { border: none; background: #fff; width: 20px; height: 20px; border-radius: 50%; color: #b5442e; cursor: pointer; font-weight: 700; font-size: 12px; line-height: 1; }
+
+/* ===== v2 UI改善（既存CSSの下に追記） ===== */
+body { padding-top: max(16px, env(safe-area-inset-top)); }
+
+.appHead { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 4px 0 12px; }
+.appHead h1 { text-align: left; margin: 0; font-size: 17px; }
+.appHead .sub { text-align: left; margin: 2px 0 0; font-size: 11px; }
+
+.syncChip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #d3d1c7; background: #fff; color: #4a4943; border-radius: 999px; padding: 7px 12px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; min-height: 36px; }
+.syncChip .dot { width: 8px; height: 8px; border-radius: 50%; background: #a8a69d; }
+.syncChip.ok .dot { background: #2f8a57; }
+.syncChip.syncing .dot { background: #2e9bbf; animation: chipPulse 1s infinite; }
+.syncChip.error { border-color: #e6b3ab; color: #b5442e; }
+.syncChip.error .dot { background: #c0392b; }
+.syncChip.unset { border-style: dashed; }
+@keyframes chipPulse { 50% { opacity: 0.3; } }
+
+.tabs { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; box-shadow: 0 6px 10px -8px rgba(0, 0, 0, 0.25); }
+.tabBtn { min-height: 44px; }
+
+.banner { display: flex; gap: 10px; align-items: center; background: #fff6e0; border: 1px solid #f0d9a0; border-radius: 12px; padding: 12px; margin-bottom: 14px; font-size: 13px; line-height: 1.5; }
+.banner button { flex: none; border: none; background: #2c2c2a; color: #fff; border-radius: 8px; padding: 9px 12px; font-size: 12px; font-weight: 700; cursor: pointer; }
+.nextBar { background: #2c2c2a; color: #fff; border-radius: 12px; padding: 10px 14px; font-size: 12px; margin-bottom: 12px; line-height: 1.5; }
+.nextBar b { font-size: 14px; }
+
+.sCard { background: #fff; border: 1px solid #e4e2da; border-radius: 14px; margin-bottom: 12px; overflow: hidden; }
+.sCardHead { list-style: none; display: flex; align-items: center; gap: 10px; padding: 14px; cursor: pointer; min-height: 52px; }
+.sCardHead::-webkit-details-marker { display: none; }
+.sCardIcon { font-size: 18px; }
+.sCardTitle { flex: 1; font-size: 14px; font-weight: 700; }
+.chev { width: 8px; height: 8px; border-right: 2px solid #8a887f; border-bottom: 2px solid #8a887f; transform: rotate(45deg); transition: transform 0.2s; margin-right: 4px; }
+.sCard[open] .chev { transform: rotate(-135deg); }
+.sCardBody { padding: 0 14px 16px; border-top: 1px solid #f0eee6; }
+
+.badge { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: #eceae2; color: #6b6a65; }
+.badge.ok { background: #e7f4ec; color: #27784a; }
+.badge.warn { background: #fff6e0; color: #8a5a00; }
+.badge.error { background: #fae9e6; color: #b5442e; }
+
+.subHead { font-size: 12px; font-weight: 700; color: #6b6a65; margin: 18px 0 6px; }
+
+.toggleRow { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 0; border-bottom: 1px solid #f0eee6; cursor: pointer; min-height: 48px; }
+.toggleText { display: flex; flex-direction: column; gap: 2px; }
+.toggleLabel { font-size: 14px; }
+.toggleHint { font-size: 11px; color: #8a887f; line-height: 1.4; }
+.toggleInput { position: absolute; opacity: 0; pointer-events: none; }
+.toggleTrack { flex: none; position: relative; width: 44px; height: 26px; border-radius: 999px; background: #d3d1c7; transition: background 0.2s; }
+.toggleTrack::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3); transition: transform 0.2s; }
+.toggleInput:checked + .toggleTrack { background: #2f8a57; }
+.toggleInput:checked + .toggleTrack::after { transform: translateX(18px); }
+.toggleInput:focus-visible + .toggleTrack { outline: 2px solid #2e9bbf; outline-offset: 2px; }
+
+.distGroup { padding: 4px 0 8px; border-bottom: 1px solid #f0eee6; }
+
+.statusList { list-style: none; padding: 0; margin: 10px 0; font-size: 12px; line-height: 1.6; }
+.statusList li { display: flex; gap: 8px; align-items: flex-start; padding: 4px 0; }
+.statusList .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; background: #a8a69d; }
+.statusList .ok .dot { background: #2f8a57; }
+.statusList .error .dot { background: #c0392b; }
+
+.btnRow { display: flex; gap: 8px; margin-top: 12px; }
+.btnRow button { flex: 1; min-height: 44px; border-radius: 8px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; }
+.btnRow button:disabled { opacity: 0.5; cursor: default; }
+.btnPrimary { background: #2c2c2a; color: #fff; }
+.btnGhost { background: #eceae2; color: #2c2c2a; }
+.btnDanger { background: #fae9e6; color: #b5442e; }
+
+.dirtyNote { font-size: 11px; color: #8a5a00; margin: 8px 0 0; }
+.notice { font-size: 12px; line-height: 1.6; background: #f4f2ec; border-radius: 10px; padding: 10px 12px; margin: 10px 0; color: #4a4943; }
+.notice.warn { background: #fff6e0; color: #8a5a00; }
+.selectRow { display: flex; gap: 8px; align-items: center; }
+.selectRow select { flex: 1; }
+.selectRow span { font-size: 12px; color: #6b6a65; flex: none; }
