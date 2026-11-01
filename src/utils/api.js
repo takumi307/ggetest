@@ -3,12 +3,10 @@
  * すべてのリクエストに次のヘッダを付けます。
  *   Authorization: Bearer <合言葉>
  *   X-User-Id: <ユーザーID>
- *
- * ★Workers側のルートが違う場合は、ここの ENDPOINTS だけ直せば動きます。
  */
 export const ENDPOINTS = {
   sync: (channel) => `/api/${channel}/sync`,
-  snapshot: (channel) => `/api/${channel}/snapshot`,
+  settings: (channel) => `/api/${channel}/settings`,
   test: (channel) => `/api/${channel}/test`
 }
 
@@ -74,7 +72,7 @@ export function createApiClient({ baseUrl, token, userId, channel }) {
   const base = { baseUrl, token, userId }
   return {
     sync: (payload) => apiRequest({ ...base, path: ENDPOINTS.sync(channel), body: payload }),
-    snapshot: (payload) => apiRequest({ ...base, path: ENDPOINTS.snapshot(channel), body: payload }),
-    test: () => apiRequest({ ...base, path: ENDPOINTS.test(channel), body: {} })
+    settings: (payload) => apiRequest({ ...base, path: ENDPOINTS.settings(channel), body: payload || {} }),
+    test: (payload) => apiRequest({ ...base, path: ENDPOINTS.test(channel), body: payload || {} })
   }
 }
