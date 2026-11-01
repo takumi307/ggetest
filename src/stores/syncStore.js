@@ -1,6 +1,9 @@
 import { defineStore } from 'pinia'
 import { reactive, ref, watch } from 'vue'
-import { SYNC_CHANNELS, CHANNEL_IDS, HIST_TOMB_KEY, SYNC_LOG_KEY, TOMB_KEEP_MS, HIST_TOMB_KEEP_MS, SYNC_RETRY_MS } from '@/utils/constants'
+import {
+  SYNC_CHANNELS, CHANNEL_IDS, NOTIFY_TYPE_LIST, HIST_TOMB_KEY, SYNC_LOG_KEY,
+  TOMB_KEEP_MS, HIST_TOMB_KEEP_MS, SYNC_RETRY_MS
+} from '@/utils/constants'
 import { aquaKey, getLocalDateKey, formatClock, loadJson, saveJson, asArray, asObject, newId } from '@/utils/helpers'
 import { createApiClient } from '@/utils/api'
 import { useUiStore } from './uiStore'
@@ -16,9 +19,26 @@ function makeChannel(id) {
   return ch
 }
 
-function clampNum(v, def, min, max) {
-  if (v === '' || v == null || !Number.isFinite(Number(v))) return def
-  return Math.min(max, Math.max(min, Math.round(Number(v))))
+/* 通知設定の初期値・整形（保存先はサーバー。画面表示用に持つだけ） */
+function defaultNotify(id) {
+  const types = {}
+  NOTIFY_TYPE_LIST[id].forEach(([t]) => { types[t] = true })
+  return { leadMin: 10, quietOn: false, quietStart: 0, quietEnd: 7, digest: true, roleId: '', types }
+}
+function normalizeNotify(id, s) {
+  const out = defaultNotify(id)
+  s = s || {}
+  if (Number.isFinite(Number(s.leadMin))) out.leadMin = Number(s.leadMin)
+  out.quietOn = !!s.quietOn
+  if (Number.isFinite(Number(s.quietStart))) out.quietStart = Number(s.quietStart)
+  if (Number.isFinite(Number(s.quietEnd))) out.quietEnd = Number(s.quietEnd)
+  out.digest = s.digest !== false
+  out.roleId = String(s.roleId || '')
+  Object.keys(out.types).forEach((t) => { out.types[t] = !(s.types && s.types[t] === false) })
+  return out
+}
+function makeNotifyState(id) {
+  return { loaded: false, loading: false, error: '', settings: defaultNotify(id), webhookSet: false, webhookHint: '' }
 }
 
 export const useSyncStore = defineStore('sync', () => {
@@ -28,10 +48,11 @@ export const useSyncStore = defineStore('sync', () => {
   /* ================= state ================= */
   const channels = reactive({ aqua: makeChannel('aqua'), fort: makeChannel('fort') })
   const runtime = reactive({
-    aqua: { syncing: false, lastTryAt: 0, failStreak: 0 },
-    fort: { syncing: false, lastTryAt: 0, failStreak: 0 }
+    aqua: { syncing: false, lastTryAt: 0, failStreak: 0, lastError: '' },
+    fort: { syncing: false, lastTryAt: 0, failStreak: 0, lastError: '' }
   })
   const syncLog = ref(asArray(loadJson(SYNC_LOG_KEY, [])))
+  const notify = reactive({ aqua: makeNotifyState('aqua'), fort: makeNotifyState('fort') })
 
   CHANNEL_IDS.forEach((id) => {
     const def = SYNC_CHANNELS[id]
@@ -45,8 +66,6 @@ export const useSyncStore = defineStore('sync', () => {
   const chanIdOfType = (t) => CHANNEL_IDS.find((id) => SYNC_CHANNELS[id].types.includes(t)) || null
   const isConfigured = (id) => !!(channels[id].settings.url && channels[id].settings.token && T().userId)
   const anyConfigured = () => CHANNEL_IDS.some(isConfigured)
-  const isSnapshot = (id) => id === 'fort' && channels.fort.settings.mode === 'snapshot'
-  const btnLabel = (id) => (isSnapshot(id) ? '📤 要塞・ドラゴンを今すぐ送信（通知のみ）' : SYNC_CHANNELS[id].btnLabel)
 
   function client(id) {
     const s = channels[id].settings
@@ -172,54 +191,31 @@ export const useSyncStore = defineStore('sync', () => {
   }
   function clearSyncLog() { syncLog.value = [] }
 
-  /* ================= 同期本体 ================= */
-  function fortSettingsPayload() {
-    const s = channels.fort.settings
-    return { leadMin: s.leadMin, quietOn: !!s.quietOn, quietStart: s.quietStart, quietEnd: s.quietEnd, digest: s.digest !== false }
-  }
-
-  async function syncNow(id, auto = false) {
+  /* ================= 同期本体 =================
+   * mode: 'manual'（手動・結果をメッセージ表示）／'auto'（自動）／'silent'（呼び出し側がまとめて表示）
+   * 戻り値: { ok, changed, error } */
+  async function syncNow(id, mode = 'manual') {
+    const auto = mode === 'auto'
     const def = SYNC_CHANNELS[id]
     const ch = channels[id]
     const rt = runtime[id]
     const tracker = T()
     if (!isConfigured(id)) {
-      if (!auto) ui.showAlert('先に「表示・記録設定」で' + def.name + 'の同期URL・合言葉・ユーザーIDを保存してください')
-      return false
+      if (mode === 'manual') ui.showAlert('先に「設定」タブで接続（URL・合言葉・ユーザーID）を保存してください')
+      return { ok: false, changed: 0, error: '未接続' }
     }
-    if (rt.syncing) return false
+    if (rt.syncing) return { ok: false, changed: 0, error: '同期中です' }
     rt.syncing = true
     rt.lastTryAt = Date.now()
     try {
       const now = Date.now()
       ch.tombs = ch.tombs.filter((t) => now - (Number(t.updatedAt) || 0) < TOMB_KEEP_MS)
-      const api = client(id)
 
-      /* ① 通知のみ（一方向）：通知してよい対象の「種類・座標・時刻・メモ」だけを丸ごと送る */
-      if (isSnapshot(id)) {
-        const hasAny = tracker.entries.some((e) => def.types.includes(e.type))
-        if (auto && !hasAny) return false // 空の端末が自動で一覧を空にするのを防ぐ
-        const snapItems = []
-        tracker.entries.forEach((e) => {
-          if (!def.types.includes(e.type) || !Number.isFinite(Number(e.x)) || !Number.isFinite(Number(e.y)) || !Number.isFinite(Number(e.eventAt))) return
-          if (!tracker.shouldNotifyEntry(e)) return
-          snapItems.push({ type: e.type, x: Number(e.x), y: Number(e.y), label: e.label || '', eventAt: Number(e.eventAt) })
-        })
-        await api.snapshot({ items: snapItems, settings: fortSettingsPayload() })
-        if (!auto) addSyncLog({ ch: id, at: Date.now(), auto: false, sent: snapItems.length, changes: [], mode: 'snapshot' })
-        ch.settings.lastSyncDate = getLocalDateKey(Date.now())
-        ch.settings.lastSyncAt = Date.now()
-        rt.failStreak = 0
-        if (!auto) ui.showToast('📤 通知用の一覧を送信しました（' + snapItems.length + '件）')
-        return true
-      }
-
-      /* ② 端末同期 */
       const items = []
       tracker.entries.forEach((e) => {
         if (!def.types.includes(e.type) || !Number.isFinite(Number(e.x)) || !Number.isFinite(Number(e.y)) || !Number.isFinite(Number(e.eventAt))) return
         const it = { type: e.type, x: Number(e.x), y: Number(e.y), label: e.label || '', eventAt: Number(e.eventAt), updatedAt: Number(e.updatedAt) || 0, deleted: false }
-        if (id === 'fort') it.notify = tracker.shouldNotifyEntry(e)
+        if (id === 'fort') it.notify = tracker.shouldNotifyEntry(e) // 距離フィルター外・非表示は通知しない
         items.push(it)
       })
       ch.tombs.forEach((t) => {
@@ -230,7 +226,6 @@ export const useSyncStore = defineStore('sync', () => {
       let pendingH = []
       const sentTombIds = {}
       if (id === 'fort') {
-        payload.settings = fortSettingsPayload()
         // ルビー記録：まだ送っていない記録＋削除の記録だけを送り、前回以降の変化だけを受け取る
         ch.histTombs = ch.histTombs.filter((t) => now - (Number(t.at) || 0) < HIST_TOMB_KEEP_MS)
         pendingH = tracker.attackHistory
@@ -245,7 +240,7 @@ export const useSyncStore = defineStore('sync', () => {
         payload.historySince = Number(ch.settings.histCursor) || 0
       }
 
-      const data = await api.sync(payload)
+      const data = await client(id).sync(payload)
       const changes = []
       const changed = applyRemoteItems(id, Array.isArray(data.items) ? data.items : [], changes)
       let rubyAdd = 0, rubyDel = 0
@@ -262,29 +257,44 @@ export const useSyncStore = defineStore('sync', () => {
           ch.settings.histUnsupported = true // サーバーがルビー記録の同期に未対応
         }
       }
+      const total = changed + rubyAdd + rubyDel
       // 5分おきの自動同期は「相手の更新なし」を履歴に残さない
       if (!auto || changes.length || rubyAdd || rubyDel || !def.intervalMs) {
-        addSyncLog({ ch: id, at: Date.now(), auto: !!auto, sent: items.filter((i) => !i.deleted).length, changes, ruby: { add: rubyAdd, del: rubyDel } })
+        addSyncLog({ ch: id, at: Date.now(), auto, sent: items.filter((i) => !i.deleted).length, changes, ruby: { add: rubyAdd, del: rubyDel } })
       }
       ch.settings.lastSyncDate = getLocalDateKey(Date.now())
       ch.settings.lastSyncAt = Date.now()
       rt.failStreak = 0
-      if (!auto) ui.showToast('🔄 ' + def.name + 'を同期しました（相手の更新 ' + changed + '件' + (id === 'fort' ? '・ルビー記録 ' + (rubyAdd + rubyDel) + '件' : '') + 'を反映）')
-      else if (!def.intervalMs) ui.showToast('🔄 本日の' + def.name + 'データを同期しました' + (changed ? '（相手の更新 ' + changed + '件）' : ''))
-      else if (changed || rubyAdd || rubyDel) ui.showToast('🔄 ' + def.name + '：他の端末の更新 ' + (changed + rubyAdd + rubyDel) + '件を反映しました')
-      return true
+      rt.lastError = ''
+      if (mode === 'manual') ui.showToast('🔄 ' + def.name + 'を同期しました（相手の更新 ' + total + '件を反映）')
+      else if (auto && !def.intervalMs) ui.showToast('🔄 本日の' + def.name + 'データを同期しました' + (total ? '（相手の更新 ' + total + '件）' : ''))
+      else if (auto && total) ui.showToast('🔄 ' + def.name + '：他の端末の更新 ' + total + '件を反映しました')
+      return { ok: true, changed: total, error: '' }
     } catch (err) {
+      const emsg = err && err.message ? err.message : String(err)
+      rt.lastError = emsg
       if (auto) {
         if (rt.failStreak === 0) ui.showToast(def.name + 'の自動同期に失敗しました')
         rt.failStreak++
-      } else {
-        const emsg = err && err.message ? err.message : String(err)
-        ui.showAlert((isSnapshot(id) ? '送信できませんでした。\n' : '同期できませんでした。\n') + emsg)
+      } else if (mode === 'manual') {
+        ui.showAlert('同期できませんでした。\n' + emsg)
       }
-      return false
+      return { ok: false, changed: 0, error: emsg }
     } finally {
       rt.syncing = false
     }
+  }
+
+  /* アクア＋要塞・ドラゴンをまとめて同期して、結果を1回だけ表示 */
+  async function syncAll() {
+    const ids = CHANNEL_IDS.filter(isConfigured)
+    if (!ids.length) { ui.showAlert('先に「設定」タブで接続（URL・合言葉・ユーザーID）を保存してください'); return false }
+    const results = await Promise.all(ids.map((id) => syncNow(id, 'silent')))
+    const fail = results.find((r) => !r.ok)
+    if (fail) { ui.showAlert('同期できませんでした。\n' + fail.error); return false }
+    const total = results.reduce((s, r) => s + r.changed, 0)
+    ui.showToast('🔄 同期しました（相手の更新 ' + total + '件を反映）')
+    return true
   }
 
   /* 入力中・編集中・パネル表示中は自動同期を見送る（画面が書き換わって入力が消えるのを防ぐ） */
@@ -309,59 +319,104 @@ export const useSyncStore = defineStore('sync', () => {
     CHANNEL_IDS.forEach((id) => {
       if (!isConfigured(id) || runtime[id].syncing || !syncDue(id)) return
       if (userBusy()) return
-      syncNow(id, true)
+      syncNow(id, 'auto')
     })
   }
 
-  /* ================= 設定の保存・テスト ================= */
-  /** 同期設定を保存して今すぐ同期。入力欄の値（input）を受け取る */
-  function saveChannelSettings(id, input) {
-    const def = SYNC_CHANNELS[id]
-    const s = channels[id].settings
-    const url = String(input.url || '').trim()
-    const token = String(input.token || '').trim()
-    if (id === 'fort') {
-      s.leadMin = clampNum(input.leadMin, 10, 0, 60)
-      s.quietOn = !!input.quietOn
-      s.quietStart = clampNum(input.quietStart, 0, 0, 23)
-      s.quietEnd = clampNum(input.quietEnd, 7, 0, 23)
-      s.digest = !!input.digest
-      const newMode = input.mode === 'snapshot' ? 'snapshot' : 'sync'
-      if (newMode !== s.mode) { s.mode = newMode; s.lastSyncAt = 0 }
-    }
+  /* ================= 接続設定（アクア・要塞で共通のURL・合言葉・ユーザーID） ================= */
+  async function saveConnection({ url, token, userId }) {
+    url = String(url || '').trim().replace(/\/+$/, '')
+    token = String(token || '').trim()
+    userId = String(userId || '').trim()
     if (!url && !token) {
-      s.url = ''; s.token = ''; s.lastSyncDate = ''; s.lastSyncAt = 0
-      ui.showToast(def.name + 'の同期を解除しました')
+      CHANNEL_IDS.forEach((id) => {
+        const s = channels[id].settings
+        s.url = ''; s.token = ''; s.lastSyncDate = ''; s.lastSyncAt = 0
+        notify[id].loaded = false
+        runtime[id].lastError = ''
+      })
+      ui.showToast('接続を解除しました')
       return false
     }
     if (!/^https:\/\//.test(url) || !token) {
-      ui.showAlert('同期URL（https://〜）と合言葉の両方を入力してください')
+      ui.showAlert('URL（https://〜）と合言葉の両方を入力してください')
       return false
     }
-    if (url !== s.url || token !== s.token) {
-      s.lastSyncDate = ''
-      s.lastSyncAt = 0
-      if (id === 'fort') { // 接続先が変わったら、ルビー記録を新しい接続先へ最初から送り直す
-        T().attackHistory.forEach((h) => { delete h.synced })
-        s.histCursor = 0
-        s.histUnsupported = false
-        channels.fort.histTombs = []
-      }
+    const tracker = T()
+    const changed = userId !== tracker.userId || CHANNEL_IDS.some((id) => channels[id].settings.url !== url || channels[id].settings.token !== token)
+    tracker.setUserId(userId)
+    CHANNEL_IDS.forEach((id) => {
+      const s = channels[id].settings
+      if (changed) { s.lastSyncDate = ''; s.lastSyncAt = 0 }
+      s.url = url
+      s.token = token
+      runtime[id].lastTryAt = 0
+      runtime[id].lastError = ''
+    })
+    if (changed) { // 接続先が変わったら、ルビー記録を新しい接続先へ最初から送り直す
+      tracker.attackHistory.forEach((h) => { delete h.synced })
+      channels.fort.settings.histCursor = 0
+      channels.fort.settings.histUnsupported = false
+      channels.fort.histTombs = []
     }
-    s.url = url
-    s.token = token
-    runtime[id].lastTryAt = 0
-    syncNow(id, false)
-    return true
+    const ok = await syncAll()
+    await loadAllNotify()
+    return ok
   }
 
-  async function testNotify() {
-    if (!isConfigured('fort')) { ui.showAlert('先に同期URL・合言葉・ユーザーIDを保存してください'); return }
+  /* ================= 通知設定（保存先はサーバー） ================= */
+  function applyNotifyResponse(id, data) {
+    const n = notify[id]
+    if (data.settings) n.settings = normalizeNotify(id, data.settings)
+    n.webhookSet = !!(data.webhook && data.webhook.set)
+    n.webhookHint = (data.webhook && data.webhook.hint) || ''
+    n.loaded = true
+    n.error = ''
+  }
+
+  async function loadNotify(id) {
+    const n = notify[id]
+    if (!isConfigured(id) || n.loading) return false
+    n.loading = true
     try {
-      await client('fort').test()
+      applyNotifyResponse(id, await client(id).settings({}))
+      return true
+    } catch (err) {
+      n.error = err && err.message ? err.message : String(err)
+      return false
+    } finally {
+      n.loading = false
+    }
+  }
+  async function loadAllNotify() {
+    await Promise.all(CHANNEL_IDS.map((id) => loadNotify(id)))
+  }
+
+  /* settings: 通知設定（省略可）／ webhookUrl: undefinedで変更なし・''で解除・URLで登録 */
+  async function saveNotify(id, settings, webhookUrl) {
+    if (!isConfigured(id)) { ui.showAlert('先に「接続」を設定してください'); return false }
+    try {
+      const payload = {}
+      if (settings) payload.settings = settings
+      if (webhookUrl !== undefined) payload.webhookUrl = webhookUrl
+      applyNotifyResponse(id, await client(id).settings(payload))
+      ui.showToast('通知設定を保存しました')
+      return true
+    } catch (err) {
+      ui.showAlert('通知設定を保存できませんでした。\n' + (err && err.message ? err.message : err))
+      return false
+    }
+  }
+
+  async function testNotify(id, webhookUrl) {
+    if (!isConfigured(id)) { ui.showAlert('先に「接続」を設定してください'); return false }
+    try {
+      await client(id).test(webhookUrl ? { webhookUrl } : {})
       ui.showToast('✅ テスト通知を送信しました')
+      return true
     } catch (err) {
       ui.showAlert('テスト通知に失敗しました。\n' + (err && err.message ? err.message : err))
+      return false
     }
   }
 
@@ -369,22 +424,30 @@ export const useSyncStore = defineStore('sync', () => {
   function statusText(id) {
     const ch = channels[id]
     const def = SYNC_CHANNELS[id]
-    if (!isConfigured(id)) return '同期：未設定（URL・合言葉・ユーザーIDが必要です）'
-    if (isSnapshot(id)) {
-      return ch.settings.lastSyncAt
-        ? '通知のみ：設定済み／最終送信 ' + formatClock(ch.settings.lastSyncAt) + '／5分おきに自動送信（他の端末へは反映されません）'
-        : '通知のみ：設定済み（まだ送信していません）'
-    }
-    let auto = def.intervalMs ? '／5分おきに自動同期' : '／日付が変わって最初に開いた時に自動同期'
-    if (id === 'fort' && ch.settings.histUnsupported) auto += '（ルビー記録は未同期：サーバー側が未対応です）'
-    if (!ch.settings.lastSyncAt) return '同期：設定済み（まだ同期していません）' + auto
-    return '同期：設定済み／最終同期 ' + formatClock(ch.settings.lastSyncAt) + auto
+    const rt = runtime[id]
+    if (!isConfigured(id)) return '未接続'
+    if (rt.lastError) return '失敗：' + rt.lastError
+    const auto = def.intervalMs ? '5分おきに自動同期' : '日付が変わって最初に開いた時に自動同期'
+    const last = ch.settings.lastSyncAt ? '最終同期 ' + formatClock(ch.settings.lastSyncAt) : 'まだ同期していません'
+    const extra = id === 'fort' && ch.settings.histUnsupported ? '（ルビー記録はサーバー未対応）' : ''
+    return last + '／' + auto + extra
+  }
+
+  /* ヘッダーの同期チップ用 */
+  function summary() {
+    const ids = CHANNEL_IDS.filter(isConfigured)
+    if (!ids.length) return { state: 'unset', text: '未接続' }
+    if (ids.some((id) => runtime[id].syncing)) return { state: 'syncing', text: '同期中…' }
+    if (ids.some((id) => runtime[id].lastError)) return { state: 'error', text: '同期エラー' }
+    const last = Math.max.apply(null, ids.map((id) => Number(channels[id].settings.lastSyncAt) || 0))
+    return last ? { state: 'ok', text: formatClock(last) + ' 同期' } : { state: 'idle', text: '未同期' }
   }
 
   return {
-    channels, runtime, syncLog,
-    chanIdOfType, isConfigured, anyConfigured, isSnapshot, btnLabel, statusText,
+    channels, runtime, syncLog, notify,
+    chanIdOfType, isConfigured, anyConfigured, statusText, summary,
     touchSync, addTombstone, addHistTomb, clearSyncLog,
-    syncNow, autoSyncIfNeeded, saveChannelSettings, testNotify
+    syncNow, syncAll, autoSyncIfNeeded, saveConnection,
+    loadNotify, loadAllNotify, saveNotify, testNotify
   }
 })
