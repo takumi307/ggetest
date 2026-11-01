@@ -6,6 +6,7 @@ import SettingCard from './SettingCard.vue'
 import ConnectionSettings from './ConnectionSettings.vue'
 import NotifySettings from './NotifySettings.vue'
 import DisplaySettings from './DisplaySettings.vue'
+import PresetCoords from './PresetCoords.vue'
 
 const tracker = useTrackerStore()
 const sync = useSyncStore()
@@ -34,6 +35,10 @@ const aquaBadge = computed(() => notifyBadge('aqua'))
 
     <SettingCard title="通知：アクア（全員で共有）" icon="🌊" :badge="aquaBadge.text" :badge-type="aquaBadge.type">
       <NotifySettings channel="aqua" />
+    </SettingCard>
+
+    <SettingCard title="標準座標（固定の座標）" icon="📍">
+      <PresetCoords />
     </SettingCard>
 
     <SettingCard title="表示・距離の設定" icon="👁️">
