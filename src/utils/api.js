@@ -67,12 +67,37 @@ export async function apiRequest({ baseUrl, token, userId, path, method = 'POST'
   return data
 }
 
+/**
+ * アプリを離れるときの送信。keepalive により、ページが閉じられても送信が続く。
+ * 結果は待たない（送れたかどうかは分からない）。keepaliveは本文が64KBまでなので、超える場合は送らない。
+ */
+export function apiPushKeepalive({ baseUrl, token, userId, path, body }) {
+  try {
+    const text = JSON.stringify(body)
+    if (new TextEncoder().encode(text).length > 60000) return false
+    fetch(joinUrl(baseUrl, path), {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer ' + token,
+        'X-User-Id': userId,
+        'Content-Type': 'application/json'
+      },
+      body: text,
+      keepalive: true
+    }).catch(() => {})
+    return true
+  } catch (e) {
+    return false
+  }
+}
+
 /** チャンネル（aqua / fort）ごとのクライアントを作る */
 export function createApiClient({ baseUrl, token, userId, channel }) {
   const base = { baseUrl, token, userId }
   return {
     sync: (payload) => apiRequest({ ...base, path: ENDPOINTS.sync(channel), body: payload }),
     settings: (payload) => apiRequest({ ...base, path: ENDPOINTS.settings(channel), body: payload || {} }),
-    test: (payload) => apiRequest({ ...base, path: ENDPOINTS.test(channel), body: payload || {} })
+    test: (payload) => apiRequest({ ...base, path: ENDPOINTS.test(channel), body: payload || {} }),
+    pushKeepalive: (payload) => apiPushKeepalive({ ...base, path: ENDPOINTS.sync(channel), body: payload })
   }
 }
