@@ -28,21 +28,29 @@ function onChip() {
 
 let tickTimer = null
 let syncTimer = null
-function onVisible() {
+
+/* 画面が見えるようになったら同期の時間を確認し、見えなくなるとき（別アプリへ切り替え・閉じる）は未送信の変更を1回送る */
+function onVisibility() {
   if (document.visibilityState === 'visible') sync.autoSyncIfNeeded()
+  else sync.flushOnLeave()
+}
+function onPageHide() {
+  sync.flushOnLeave()
 }
 
 onMounted(() => {
   tickTimer = setInterval(tracker.tick, 1000) // 残り時間の表示更新
   syncTimer = setInterval(sync.autoSyncIfNeeded, 30000) // 同期の時間になったか30秒ごとに確認
-  document.addEventListener('visibilitychange', onVisible)
+  document.addEventListener('visibilitychange', onVisibility)
+  window.addEventListener('pagehide', onPageHide)
   sync.autoSyncIfNeeded()
   sync.loadAllNotify() // 通知設定（サーバー保存）を読み込む
 })
 onBeforeUnmount(() => {
   clearInterval(tickTimer)
   clearInterval(syncTimer)
-  document.removeEventListener('visibilitychange', onVisible)
+  document.removeEventListener('visibilitychange', onVisibility)
+  window.removeEventListener('pagehide', onPageHide)
 })
 </script>
 
