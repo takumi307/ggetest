@@ -48,10 +48,20 @@ export const useSyncStore = defineStore('sync', () => {
 
   /* ================= state ================= */
   const channels = reactive({ aqua: makeChannel('aqua'), fort: makeChannel('fort') })
-  const runtime = reactive({
-    aqua: { syncing: false, lastTryAt: 0, failStreak: 0, lastError: '' },
-    fort: { syncing: false, lastTryAt: 0, failStreak: 0, lastError: '' }
-  })
+  const online = ref(navigator.onLine !== false)
+  const runtime = reactive(Object.fromEntries(CHANNEL_IDS.map((id) => [id, {
+    syncing: false, saving: false, manual: false, lastTryAt: 0, lastError: '',
+    reconnectPending: !online.value
+  }])))
+  const updateNotice = ref('')
+  let updateTimer
+  const RECONNECT_RETRY_MS = 30000
+
+  function showRemoteUpdate() {
+    updateNotice.value = '最新データに更新しました'
+    clearTimeout(updateTimer)
+    updateTimer = setTimeout(() => { updateNotice.value = '' }, 3000)
+  }
   const syncLog = ref(asArray(loadJson(SYNC_LOG_KEY, [])))
   const notify = reactive({ aqua: makeNotifyState('aqua'), fort: makeNotifyState('fort') })
 
@@ -169,12 +179,15 @@ export const useSyncStore = defineStore('sync', () => {
       if (remoteWins(l, r)) {
         const fromAt = Number(l.eventAt)
         const newAt = Number(r.eventAt)
-        changes.push({ kind: 'update', type: r.type, x: Number(r.x), y: Number(r.y), from: fromAt, to: newAt })
+        const newLabel = r.label == null ? l.label : String(r.label)
+        if (newAt !== fromAt || (newLabel || '') !== (l.label || '')) {
+          changes.push({ kind: 'update', type: r.type, x: Number(r.x), y: Number(r.y), from: fromAt, to: newAt })
+          changed++
+        }
         if (newAt !== fromAt) l.resultLogged = false // 新しい周期。攻撃結果の記録は再び可能にする
         l.eventAt = newAt
         l.updatedAt = ru
-        if (r.label != null) l.label = String(r.label)
-        changed++
+        l.label = newLabel
       }
     })
     return changed
@@ -245,7 +258,7 @@ export const useSyncStore = defineStore('sync', () => {
   }
 
   /* ================= 同期本体 =================
-   * mode: 'manual'（手動・結果をメッセージ表示）／'auto'（自動）／'silent'（呼び出し側がまとめて表示）
+   * mode: 'manual'（手動）／'auto'（自動）
    * 戻り値: { ok, changed, error } */
   async function syncNow(id, mode = 'manual') {
     const auto = mode === 'auto'
@@ -257,8 +270,11 @@ export const useSyncStore = defineStore('sync', () => {
       if (mode === 'manual') ui.showAlert('先に「設定」タブで接続（URL・合言葉・ユーザーID）を保存してください')
       return { ok: false, changed: 0, error: '未接続' }
     }
+    if (!online.value) return { ok: false, changed: 0, error: 'オフライン' }
     if (rt.syncing) return { ok: false, changed: 0, error: '同期中です' }
     rt.syncing = true
+    rt.manual = !auto
+    rt.reconnectPending = false
     rt.lastTryAt = Date.now()
     try {
       const now = Date.now()
@@ -286,9 +302,12 @@ export const useSyncStore = defineStore('sync', () => {
         payload.historySince = Number(ch.settings.histCursor) || 0
       }
 
+      const lastBuiltAt = Number(ch.settings.lastBuiltAt) || Number(ch.settings.lastSyncAt) || 0
+      rt.saving = items.some((item) => item.updatedAt > lastBuiltAt) || !!payload.history?.length
       const data = await client(id).sync(payload)
+      if (!Array.isArray(data.items)) throw new Error('同期データの形式が正しくありません')
       const changes = []
-      const changed = applyRemoteItems(id, Array.isArray(data.items) ? data.items : [], changes)
+      const changed = applyRemoteItems(id, data.items, changes)
       let rubyAdd = 0, rubyDel = 0
       if (id === 'fort') {
         if (Array.isArray(data.history)) {
@@ -311,37 +330,26 @@ export const useSyncStore = defineStore('sync', () => {
       ch.settings.lastSyncDate = getLocalDateKey(Date.now())
       ch.settings.lastSyncAt = Date.now()
       ch.settings.lastBuiltAt = now // この時刻より後に変わった分が「未送信」
-      rt.failStreak = 0
       rt.lastError = ''
-      if (mode === 'manual') ui.showToast('🔄 ' + def.name + 'を同期しました（相手の更新 ' + total + '件を反映）')
-      else if (auto && !def.intervalMs) ui.showToast('🔄 本日の' + def.name + 'データを同期しました' + (total ? '（相手の更新 ' + total + '件）' : ''))
-      else if (auto && total) ui.showToast('🔄 ' + def.name + '：他の端末の更新 ' + total + '件を反映しました')
+      if (total && online.value) showRemoteUpdate()
       return { ok: true, changed: total, error: '' }
     } catch (err) {
       const emsg = err && err.message ? err.message : String(err)
       rt.lastError = emsg
-      if (auto) {
-        if (rt.failStreak === 0) ui.showToast(def.name + 'の自動同期に失敗しました')
-        rt.failStreak++
-      } else if (mode === 'manual') {
-        ui.showAlert('同期できませんでした。\n' + emsg)
-      }
       return { ok: false, changed: 0, error: emsg }
     } finally {
       rt.syncing = false
+      rt.saving = false
+      rt.manual = false
     }
   }
 
-  /* アクア＋要塞・ドラゴンをまとめて同期して、結果を1回だけ表示 */
+  const canSyncNow = () => online.value && anyConfigured() && !CHANNEL_IDS.some((id) => runtime[id].syncing)
+
   async function syncAll() {
-    const ids = CHANNEL_IDS.filter(isConfigured)
-    if (!ids.length) { ui.showAlert('先に「設定」タブで接続（URL・合言葉・ユーザーID）を保存してください'); return false }
-    const results = await Promise.all(ids.map((id) => syncNow(id, 'silent')))
-    const fail = results.find((r) => !r.ok)
-    if (fail) { ui.showAlert('同期できませんでした。\n' + fail.error); return false }
-    const total = results.reduce((s, r) => s + r.changed, 0)
-    ui.showToast('🔄 同期しました（相手の更新 ' + total + '件を反映）')
-    return true
+    if (!canSyncNow()) return false
+    const results = await Promise.all(CHANNEL_IDS.filter(isConfigured).map((id) => syncNow(id)))
+    return results.every((r) => r.ok)
   }
 
   /* 確認ダイアログが開いている間だけ、自動同期を見送る */
@@ -353,17 +361,29 @@ export const useSyncStore = defineStore('sync', () => {
     const rt = runtime[id]
     const s = channels[id].settings
     const now = Date.now()
-    if (rt.lastTryAt && now - rt.lastTryAt < SYNC_RETRY_MS) return false
-    if (def.intervalMs) return now - (Number(s.lastSyncAt) || 0) >= def.intervalMs - 5000
+    const retryDelay = rt.reconnectPending ? RECONNECT_RETRY_MS : SYNC_RETRY_MS
+    if (rt.lastTryAt && now - rt.lastTryAt < retryDelay) return false
+    if (rt.reconnectPending) return true
+    if (def.intervalMs) return now - (Number(s.lastSyncAt) || 0) >= def.intervalMs
     return s.lastSyncDate !== getLocalDateKey(now)
   }
   function autoSyncIfNeeded() {
-    if (document.visibilityState !== 'visible') return
+    if (!online.value || document.visibilityState !== 'visible' || userBusy()) return
     CHANNEL_IDS.forEach((id) => {
-      if (!isConfigured(id) || runtime[id].syncing || !syncDue(id)) return
-      if (userBusy()) return
-      syncNow(id, 'auto')
+      if (isConfigured(id) && !runtime[id].syncing && syncDue(id)) syncNow(id, 'auto')
     })
+  }
+
+  function updateNetworkStatus() {
+    const connected = navigator.onLine !== false
+    if (connected === online.value) return
+    online.value = connected
+    if (connected) autoSyncIfNeeded()
+    else {
+      CHANNEL_IDS.forEach((id) => { runtime[id].reconnectPending = true })
+      clearTimeout(updateTimer)
+      updateNotice.value = ''
+    }
   }
 
   /* ================= アプリを離れるときの送信 =================
@@ -404,7 +424,7 @@ export const useSyncStore = defineStore('sync', () => {
   let lastLeaveAt = 0
   function flushOnLeave() {
     const now = Date.now()
-    if (now - lastLeaveAt < 2000) return // hidden と pagehide が続けて来たときの二重送信を防ぐ
+    if (!online.value || now - lastLeaveAt < 2000) return // hidden と pagehide が続けて来たときの二重送信を防ぐ
     lastLeaveAt = now
     CHANNEL_IDS.forEach((id) => {
       if (!isConfigured(id) || runtime[id].syncing) return // 同期中なら、その同期に任せる
@@ -415,6 +435,7 @@ export const useSyncStore = defineStore('sync', () => {
 
   /* ================= 接続設定（アクア・要塞で共通のURL・合言葉・ユーザーID） ================= */
   async function saveConnection({ url, token, userId }) {
+    if (CHANNEL_IDS.some((id) => runtime[id].syncing)) return false
     url = String(url || '').trim().replace(/\/+$/, '')
     token = String(token || '').trim()
     userId = String(userId || '').trim()
@@ -516,7 +537,8 @@ export const useSyncStore = defineStore('sync', () => {
     const def = SYNC_CHANNELS[id]
     const rt = runtime[id]
     if (!isConfigured(id)) return '未接続'
-    if (rt.lastError) return '失敗：' + rt.lastError
+    if (!online.value) return 'オフライン'
+    if (rt.lastError) return '同期できませんでした（' + rt.lastError + '）'
     const auto = def.intervalMs ? '5分おきに自動同期' : '日付が変わって最初に開いた時に自動同期'
     const last = ch.settings.lastSyncAt ? '最終同期 ' + formatClock(ch.settings.lastSyncAt) : 'まだ同期していません'
     const extra = id === 'fort' && ch.settings.histUnsupported ? '（ルビー記録はサーバー未対応）' : ''
@@ -526,18 +548,22 @@ export const useSyncStore = defineStore('sync', () => {
   /* ヘッダーの同期チップ用 */
   function summary() {
     const ids = CHANNEL_IDS.filter(isConfigured)
-    if (!ids.length) return { state: 'unset', text: '未接続' }
-    if (ids.some((id) => runtime[id].syncing)) return { state: 'syncing', text: '同期中…' }
-    if (ids.some((id) => runtime[id].lastError)) return { state: 'error', text: '同期エラー' }
-    const last = Math.max.apply(null, ids.map((id) => Number(channels[id].settings.lastSyncAt) || 0))
-    return last ? { state: 'ok', text: formatClock(last) + ' 同期' } : { state: 'idle', text: '未同期' }
+    const last = Math.min(...ids.map((id) => Number(channels[id].settings.lastSyncAt) || 0))
+    const lastSync = ids.length && last ? formatClock(last).slice(-5) : ''
+    const status = (state, text) => ({ state, text, lastSync })
+    if (!online.value) return status('offline', 'オフライン')
+    if (!ids.length) return status('unset', '未接続')
+    if (ids.some((id) => runtime[id].lastError)) return status('error', '同期できませんでした')
+    if (ids.some((id) => runtime[id].saving)) return status('syncing', '保存中...')
+    if (ids.some((id) => runtime[id].manual || (!lastSync && runtime[id].syncing))) return status('syncing', '同期中…')
+    return lastSync ? status('ok', '同期済み') : status('idle', '未同期')
   }
 
   return {
-    channels, runtime, syncLog, notify,
-    chanIdOfType, isConfigured, anyConfigured, statusText, summary,
+    channels, runtime, syncLog, notify, updateNotice,
+    chanIdOfType, isConfigured, anyConfigured, canSyncNow, statusText, summary,
     touchSync, addTombstone, addHistTomb, clearSyncLog,
-    syncNow, syncAll, autoSyncIfNeeded, scheduleSync, flushOnLeave, saveConnection,
+    syncNow, syncAll, autoSyncIfNeeded, updateNetworkStatus, scheduleSync, flushOnLeave, saveConnection,
     loadNotify, loadAllNotify, saveNotify, testNotify
   }
 })
