@@ -141,12 +141,17 @@ body { padding-top: max(16px, env(safe-area-inset-top)); }
 .appHead .sub { text-align: left; margin: 2px 0 0; font-size: 11px; }
 
 .syncChip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #d3d1c7; background: #fff; color: #4a4943; border-radius: 999px; padding: 7px 12px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; min-height: 36px; }
-.syncChip .dot { width: 8px; height: 8px; border-radius: 50%; background: #a8a69d; }
+.syncChip small { display: block; font-size: 11px; font-weight: normal; }
+.syncChip .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: #a8a69d; }
 .syncChip.ok .dot { background: #2f8a57; }
 .syncChip.syncing .dot { background: #2e9bbf; animation: chipPulse 1s infinite; }
 .syncChip.error { border-color: #e6b3ab; color: #b5442e; }
 .syncChip.error .dot { background: #c0392b; }
 .syncChip.unset { border-style: dashed; }
+.syncChip.offline { background: #efede5; }
+.syncDetails { margin: 0 0 12px; padding: 8px 12px; border: 1px solid #d3d1c7; border-radius: 10px; overflow-wrap: anywhere; }
+.syncDetails p { margin: 0 0 6px; font-size: 12px; }
+.syncNotice:not(:empty) { margin: 0 0 12px; padding: 8px 12px; border-radius: 8px; background: #e4f3e9; color: #205b3d; font-size: 13px; }
 @keyframes chipPulse { 50% { opacity: 0.3; } }
 
 .tabs { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; box-shadow: 0 6px 10px -8px rgba(0, 0, 0, 0.25); }

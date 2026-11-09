@@ -55,8 +55,8 @@ function stateOf(id) {
     </div>
 
     <div class="btnRow">
-      <button class="btnPrimary" type="button" :disabled="busy" @click="save">{{ busy ? '接続中…' : '保存して接続' }}</button>
-      <button class="btnGhost" type="button" :disabled="!sync.anyConfigured()" @click="sync.syncAll()">今すぐ同期</button>
+      <button class="btnPrimary" type="button" :disabled="busy || CHANNEL_IDS.some((id) => sync.runtime[id].syncing)" @click="save">{{ busy ? '接続中…' : '保存して接続' }}</button>
+      <button class="btnGhost" type="button" :disabled="!sync.canSyncNow()" @click="sync.syncAll()">今すぐ同期</button>
     </div>
     <p class="miniLabel" style="margin-top:8px;">URLと合言葉を両方空欄にして保存すると、接続を解除します（この端末のデータは消えません）。</p>
 

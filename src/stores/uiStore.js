@@ -15,7 +15,7 @@ export const useUiStore = defineStore('ui', () => {
     toast.message = message
     toast.show = true
     clearTimeout(toastTimer)
-    toastTimer = setTimeout(() => { toast.show = false }, 1800)
+    toastTimer = setTimeout(() => { toast.show = false }, 2000)
   }
 
   const modal = reactive({ show: false, message: '', withCancel: false })

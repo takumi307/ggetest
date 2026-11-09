@@ -329,6 +329,7 @@ export const useTrackerStore = defineStore('tracker', () => {
     const sync = useSyncStore()
     entries.value.filter((e) => e.id === id).forEach((e) => sync.addTombstone(e))
     entries.value = entries.value.filter((e) => e.id !== id)
+    ui.showToast('登録を削除しました')
   }
 
   async function clearAquaCoordinates() {
