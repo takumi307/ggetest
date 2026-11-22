@@ -1,4 +1,4 @@
-import { SURFACE_INTERVAL_MS, SMALL_AQUA_INTERVAL_MS } from './constants'
+import { SURFACE_INTERVAL_MS, SMALL_AQUA_INTERVAL_MS } from './constants.js'
 
 export function pad(n) { return String(n).padStart(2, '0') }
 
@@ -13,15 +13,16 @@ export function formatDuration(ms) {
   return pad(hours) + ':' + pad(mins) + ':' + pad(secs)
 }
 
-export function formatClock(value) {
+export function formatClock(value, withSeconds = false) {
   const d = value instanceof Date ? value : new Date(value)
-  return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes())
+  const time = (d.getMonth() + 1) + '/' + d.getDate() + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes())
+  return withSeconds ? time + ':' + pad(d.getSeconds()) : time
 }
 
 export function typeLabel(t) {
   if (t === 'dragon') return 'ドラゴン'
   if (t === 'fortress') return '砂漠の要塞'
-  if (t === 'aqua') return '嵐の島(大アクア)'
+  if (t === 'aqua') return '大アクア'
   if (t === 'smallAqua') return '小アクア'
   if (t === 'wildFortress') return '野生の要塞'
   return t

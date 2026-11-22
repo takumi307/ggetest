@@ -93,7 +93,7 @@ async function removeWebhook() {
         <input v-model="webhook" type="text" autocomplete="off" placeholder="https://discord.com/api/webhooks/…">
       </div>
       <details>
-        <summary style="font-size:12px; color:#6b6a65; cursor:pointer;">Webhook URLの作り方</summary>
+        <summary style="font-size:12px; color:var(--muted-weak); cursor:pointer;">Webhook URLの作り方</summary>
         <p class="miniLabel" style="margin-top:6px;">Discordで通知を受け取りたいチャンネルの「チャンネルの編集」→「連携サービス」→「ウェブフック」→「新しいウェブフック」を開き、「ウェブフックURLをコピー」を押して、上に貼り付けます。</p>
       </details>
 
@@ -107,6 +107,7 @@ async function removeWebhook() {
       />
 
       <div class="subHead">通知のタイミング</div>
+      <p v-if="isAqua" class="miniLabel">小アクアの通知をオンにすると、浮上から5時間たっても時刻が更新されていない場合に、Discordで1回だけ更新を促します。</p>
       <div class="field">
         <label>何分前に通知するか</label>
         <select v-model.number="draft.leadMin">
@@ -128,7 +129,7 @@ async function removeWebhook() {
       <ToggleSwitch v-model="draft.digest" label="停止が明けたらまとめて通知" hint="停止中に時刻を迎えた分を、明けてから1回にまとめて送ります" />
 
       <details style="margin-top:12px;">
-        <summary style="font-size:12px; color:#6b6a65; cursor:pointer;">ロールにメンションする（任意）</summary>
+        <summary style="font-size:12px; color:var(--muted-weak); cursor:pointer;">ロールにメンションする（任意）</summary>
         <div class="field" style="margin-top:8px;">
           <label>ロールID（数字）</label>
           <input v-model="draft.roleId" type="text" inputmode="numeric" autocomplete="off" placeholder="空欄ならメンションしません">

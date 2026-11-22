@@ -1,0 +1,26 @@
+{
+  "observability": { "enabled": true },
+  "name": "gge-tracker-api",
+  "main": "src/index.js",
+  "compatibility_date": "2025-09-01",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "gge-tracker",
+      "database_id": "d1e3fbba-b3b9-4e0d-8aa6-1f3c25b9b705"
+    }
+  ],
+  "triggers": {
+    "crons": ["*/5 * * * *"]
+  },
+  "vars": {
+    "ALLOWED_ORIGIN": "https://ggetest.takutaku307.workers.dev",
+    "DISCORD_EMOJI_IDS": {
+      "sabakunoyousai": "1570460638520807484",
+      "yaseinoyousai": "1570460559177027584",
+      "syouakua": "1570460488058413146",
+      "daiakua": "1570460433922662541",
+      "doragon": "1570460385864056894"
+    }
+  }
+}

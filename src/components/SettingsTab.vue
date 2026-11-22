@@ -1,7 +1,8 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useTrackerStore } from '@/stores/trackerStore'
 import { useSyncStore } from '@/stores/syncStore'
+import { getThemePreference, setThemePreference } from '@/utils/theme'
 import SettingCard from './SettingCard.vue'
 import ConnectionSettings from './ConnectionSettings.vue'
 import NotifySettings from './NotifySettings.vue'
@@ -10,6 +11,7 @@ import PresetCoords from './PresetCoords.vue'
 
 const tracker = useTrackerStore()
 const sync = useSyncStore()
+const theme = ref(getThemePreference())
 
 const connBadge = computed(() => {
   const s = sync.summary()
@@ -24,9 +26,20 @@ const aquaBadge = computed(() => notifyBadge('aqua'))
 </script>
 
 <template>
-  <div>
+  <div class="settings-tab">
     <SettingCard title="接続" icon="🔗" :badge="connBadge.text" :badge-type="connBadge.type" :open="!sync.anyConfigured()">
       <ConnectionSettings />
+    </SettingCard>
+
+    <SettingCard title="外観" icon="◐" open>
+      <div class="field theme-field">
+        <label for="appearance-theme">配色</label>
+        <select id="appearance-theme" v-model="theme" @change="setThemePreference(theme)">
+          <option value="system">端末の設定に合わせる</option>
+          <option value="light">ライト</option>
+          <option value="dark">ダーク</option>
+        </select>
+      </div>
     </SettingCard>
 
     <SettingCard title="通知：要塞・ドラゴン（あなた専用）" icon="🔔" :badge="fortBadge.text" :badge-type="fortBadge.type">

@@ -6,6 +6,7 @@
  */
 export const ENDPOINTS = {
   sync: (channel) => `/api/${channel}/sync`,
+  target: (channel) => `/api/${channel}/target`,
   settings: (channel) => `/api/${channel}/settings`,
   test: (channel) => `/api/${channel}/test`
 }
@@ -96,6 +97,8 @@ export function createApiClient({ baseUrl, token, userId, channel }) {
   const base = { baseUrl, token, userId }
   return {
     sync: (payload) => apiRequest({ ...base, path: ENDPOINTS.sync(channel), body: payload }),
+    target: (payload) => apiRequest({ ...base, path: ENDPOINTS.target(channel), body: payload }),
+    aquaLost: (payload) => apiRequest({ ...base, path: '/api/aqua/lost', body: payload }),
     settings: (payload) => apiRequest({ ...base, path: ENDPOINTS.settings(channel), body: payload || {} }),
     test: (payload) => apiRequest({ ...base, path: ENDPOINTS.test(channel), body: payload || {} }),
     pushKeepalive: (payload) => apiPushKeepalive({ ...base, path: ENDPOINTS.sync(channel), body: payload })

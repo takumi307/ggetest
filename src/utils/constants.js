@@ -12,10 +12,15 @@ export const SURFACE_INTERVAL_MS = 72 * 3600 * 1000
 export const SMALL_AQUA_INTERVAL_MS = 32 * 3600 * 1000
 export const TOMB_KEEP_MS = 60 * 24 * 3600 * 1000
 export const HIST_TOMB_KEEP_MS = 180 * 24 * 3600 * 1000
-export const SYNC_RETRY_MS = 5 * 60 * 1000
+export const SHARED_SYNC_INTERVAL_MS = 5 * 60 * 1000
+export const FORT_SHARED_COOLDOWN_MS = 120 * 3600 * 1000
+export const FORT_MEMBER_COOLDOWN_MS = 24 * 3600 * 1000
+export const FORT_COOLDOWN_OFFSET_MS = FORT_SHARED_COOLDOWN_MS - FORT_MEMBER_COOLDOWN_MS
+export const FORT_CYCLE_TOLERANCE_MS = 5 * 60 * 1000
 
 export const ALL_TYPES = ['wildFortress', 'fortress', 'dragon', 'aqua', 'smallAqua']
-export const DISTANCE_TYPES = ['dragon', 'fortress', 'wildFortress']
+export const FORT_TYPES = ['dragon', 'fortress', 'wildFortress']
+export const DISTANCE_TYPES = [...FORT_TYPES, 'aqua', 'smallAqua']
 
 export const TYPE_OPTIONS = [
   { value: 'wildFortress', label: '野生の要塞' },
@@ -29,15 +34,11 @@ export const DISPLAY_TYPE_LIST = [
   ['dragon', 'ドラゴン'],
   ['fortress', '砂漠の要塞'],
   ['wildFortress', '野生の要塞'],
-  ['aqua', '嵐の島（大アクア）'],
+  ['aqua', '大アクア'],
   ['smallAqua', '小アクア']
 ]
 
-export const DISTANCE_TYPE_LIST = [
-  ['dragon', 'ドラゴン'],
-  ['fortress', '砂漠の要塞'],
-  ['wildFortress', '野生の要塞']
-]
+export const DISTANCE_TYPE_LIST = DISPLAY_TYPE_LIST
 
 export const SORT_OPTIONS = [
   { value: 'timeAsc', label: '攻撃可能になる順' },
@@ -50,7 +51,7 @@ export const SORT_OPTIONS = [
 
 export const CHANNEL_IDS = ['aqua', 'fort']
 
-/* 同期チャンネル：①アクア（大・小・全員で共通） ②要塞・ドラゴン（ユーザーごと） */
+/* アクアは全員で共有。要塞・ドラゴンは120時間タイマーを共有し、座標と履歴はユーザーIDごと。 */
 export const SYNC_CHANNELS = {
   aqua: {
     id: 'aqua',
@@ -58,7 +59,6 @@ export const SYNC_CHANNELS = {
     types: ['aqua', 'smallAqua'],
     settingsKey: 'ggeAquaSyncSettings',
     tombKey: 'ggeAquaTombstones',
-    intervalMs: 5 * 60 * 1000, // 5分おき（ページを開いている間）
     defaults: { url: '', token: '', lastSyncDate: '', lastSyncAt: 0 }
   },
   fort: {
@@ -67,7 +67,6 @@ export const SYNC_CHANNELS = {
     types: ['dragon', 'fortress', 'wildFortress'],
     settingsKey: 'ggeFortSyncSettings',
     tombKey: 'ggeFortTombstones',
-    intervalMs: 5 * 60 * 1000, // 5分おき（ページを開いている間）
     defaults: { url: '', token: '', lastSyncDate: '', lastSyncAt: 0, histCursor: 0, histUnsupported: false }
   }
 }

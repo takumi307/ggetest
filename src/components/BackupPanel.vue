@@ -1,27 +1,20 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { ref } from 'vue'
 import { useTrackerStore } from '@/stores/trackerStore'
 import { useUiStore } from '@/stores/uiStore'
 
-const props = defineProps({ open: Boolean })
 const emit = defineEmits(['close'])
 const tracker = useTrackerStore()
 const ui = useUiStore()
 
-const exportText = ref('')
+const exportText = tracker.exportJson()
 const importText = ref('')
 const exportArea = ref(null)
 const fileInput = ref(null)
 
-watch(() => props.open, (v) => {
-  if (!v) return
-  exportText.value = tracker.exportJson()
-  importText.value = ''
-})
-
 async function copy() {
   try {
-    await navigator.clipboard.writeText(exportText.value)
+    await navigator.clipboard.writeText(exportText)
   } catch (e) {
     if (exportArea.value) { exportArea.value.select(); document.execCommand('copy') }
   }
@@ -58,8 +51,7 @@ function importPasted() {
 </script>
 
 <template>
-  <div class="panel" :class="{ open }">
-    <h2>データの引き継ぎ</h2>
+  <div>
     <p class="miniLabel">座標が多いとコピー&貼り付けは大変なので、ファイルとして保存/読み込みするのがおすすめです。</p>
 
     <div class="panelBtns" style="margin-bottom:16px;">
@@ -69,7 +61,7 @@ function importPasted() {
     <input ref="fileInput" type="file" accept="application/json,.json" style="display:none;" @change="onFile">
 
     <details style="margin: 4px 0 4px;">
-      <summary style="font-size:12px; color:#6b6a65; cursor:pointer;">コピー&貼り付けで移行したい場合はこちら</summary>
+      <summary style="font-size:12px; color:var(--muted-weak); cursor:pointer;">コピー&貼り付けで移行したい場合はこちら</summary>
       <div class="field" style="margin-top:10px;">
         <label>①今のデータ(コピーしてください)</label>
         <textarea ref="exportArea" :value="exportText" readonly></textarea>

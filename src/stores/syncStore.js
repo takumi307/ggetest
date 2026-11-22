@@ -2,12 +2,14 @@ import { defineStore } from 'pinia'
 import { reactive, ref, watch } from 'vue'
 import {
   SYNC_CHANNELS, CHANNEL_IDS, NOTIFY_TYPE_LIST, HIST_TOMB_KEY, SYNC_LOG_KEY,
-  TOMB_KEEP_MS, HIST_TOMB_KEEP_MS, SYNC_RETRY_MS
+  TOMB_KEEP_MS, HIST_TOMB_KEEP_MS, SHARED_SYNC_INTERVAL_MS, FORT_COOLDOWN_OFFSET_MS
 } from '@/utils/constants'
 import { aquaKey, getLocalDateKey, formatClock, loadJson, saveJson, asArray, asObject, newId } from '@/utils/helpers'
 import { createApiClient } from '@/utils/api'
+import { correctedMemberCap, resolveFortTiming } from '@/utils/fortTiming'
 import { useUiStore } from './uiStore'
 import { useTrackerStore } from './trackerStore'
+import { useEntryPreferencesStore } from './entryPreferencesStore'
 
 function makeChannel(id) {
   const def = SYNC_CHANNELS[id]
@@ -45,6 +47,7 @@ function makeNotifyState(id) {
 export const useSyncStore = defineStore('sync', () => {
   const ui = useUiStore()
   const T = () => useTrackerStore() // 循環参照を避けるため、使う時に取得する
+  const preferences = useEntryPreferencesStore()
 
   /* ================= state ================= */
   const channels = reactive({ aqua: makeChannel('aqua'), fort: makeChannel('fort') })
@@ -54,6 +57,12 @@ export const useSyncStore = defineStore('sync', () => {
   })
   const syncLog = ref(asArray(loadJson(SYNC_LOG_KEY, [])))
   const notify = reactive({ aqua: makeNotifyState('aqua'), fort: makeNotifyState('fort') })
+  const targets = reactive({ aqua: {}, fort: {} })
+  const nearest = ref({})
+  const targetBusy = reactive({ aqua: false, fort: false })
+  const targetRevision = { aqua: 0, fort: 0 }
+  const aquaLostBusy = ref(false)
+  let aquaLostRevision = 0
 
   CHANNEL_IDS.forEach((id) => {
     const def = SYNC_CHANNELS[id]
@@ -73,12 +82,156 @@ export const useSyncStore = defineStore('sync', () => {
     return createApiClient({ baseUrl: s.url, token: s.token, userId: T().userId, channel: id })
   }
 
-  function touchSync(e) {
+  const stormProfileKey = () => JSON.stringify([channels.aqua.settings.url, T().userId])
+
+  function stormProfile() {
+    return channels.aqua.settings.stormProfiles?.[stormProfileKey()]
+  }
+
+  function saveStormProfile(profile) {
+    const settings = channels.aqua.settings
+    settings.stormProfiles ||= {}
+    settings.stormProfiles[stormProfileKey()] = profile
+  }
+
+  function updateStormProfile(home, enabled) {
+    const current = stormProfile()
+    if (!!current?.enabled === enabled && (!enabled || (current.x === home.x && current.y === home.y))) return
+    saveStormProfile({ enabled, x: enabled ? home.x : null, y: enabled ? home.y : null,
+      updatedAt: Math.max(Date.now(), (current?.updatedAt || 0) + 1), dirty: true })
+    nearest.value = {}
+  }
+
+  function receiveStorm(data) {
+    const incoming = data.stormHome
+    const current = stormProfile()
+    if (incoming && (!current || incoming.updatedAt >= current.updatedAt) &&
+        (current?.dirty || current?.updatedAt !== incoming.updatedAt)) saveStormProfile({ ...incoming, dirty: false })
+    if (!stormProfile()?.dirty && Array.isArray(data.nearest)) nearest.value = Object.fromEntries(data.nearest.map((row) => [row.key, row]))
+  }
+
+  function nearestFor(entry) { return nearest.value[aquaKey(entry)] }
+
+  function timerVersion(entry) {
+    if (chanIdOfType(entry.type) !== 'fort') return ''
+    const { sharedAt, sharedMemberAt, sharedStartedAt, readyAt, personalAt, historyId } = fortCooldown(entry)
+    return [sharedAt, sharedMemberAt, sharedStartedAt, readyAt, personalAt, historyId].join('|')
+  }
+
+  function setTargets(id, list) {
+    targets[id] = Object.fromEntries(list.filter((item) => item && typeof item.key === 'string' && Number.isFinite(item.expiresAt))
+      .map((item) => [item.key, item]))
+  }
+
+  function targetFor(entry) {
+    const target = targets[chanIdOfType(entry.type)]?.[aquaKey(entry)]
+    return target && target.expiresAt > T().now ? target : null
+  }
+
+  function isAquaLost(entry) {
+    return chanIdOfType(entry.type) === 'aqua' &&
+      channels.aqua.settings.lost?.[aquaKey(entry)] === Number(entry.eventAt)
+  }
+
+  function receiveAquaLost(rows) {
+    channels.aqua.settings.lost = Object.fromEntries(rows.map((r) => [r.key, r.eventAt]))
+  }
+
+  async function toggleAquaLost(entry) {
+    if (!isConfigured('aqua') || aquaLostBusy.value || T().pendingTimerUpdate?.id === entry.id) return
+    const { url, token } = channels.aqua.settings
+    const userId = T().userId
+    const lost = !isAquaLost(entry)
+    aquaLostBusy.value = true
+    try {
+      const response = await client('aqua').aquaLost({ ...itemPayload('aqua', entry), lost })
+      if (url !== channels.aqua.settings.url || token !== channels.aqua.settings.token || userId !== T().userId) return
+      aquaLostRevision++
+      receiveAquaLost(response.lost)
+      ui.showToast(lost ? 'ロストを共有しました' : '再発見を共有しました')
+    } catch (error) {
+      ui.showAlert('状態を更新できませんでした。\n' + error.message)
+    } finally {
+      aquaLostBusy.value = false
+    }
+  }
+
+  async function toggleTarget(entry) {
+    const id = chanIdOfType(entry.type)
+    if (!id || !isConfigured(id) || targetBusy[id]) return
+    const previous = targetFor(entry)
+    if (previous && !previous.mine) return
+    const tracker = T()
+    const userId = tracker.userId
+    const { url, token } = channels[id].settings
+    targetBusy[id] = true
+    try {
+      const response = await client(id).target({
+        type: entry.type, x: Number(entry.x), y: Number(entry.y),
+        action: previous ? 'release' : 'claim', expiresAt: previous?.expiresAt
+      })
+      if (tracker.userId !== userId || channels[id].settings.url !== url || channels[id].settings.token !== token) return
+      targetRevision[id]++
+      setTargets(id, response.targets)
+      const current = targetFor(entry)
+      ui.showToast(current ? (current.mine ? '狙う宣言を共有しました' : 'ほかの人が狙っています') : '狙う宣言を解除しました')
+    } catch (error) {
+      ui.showAlert('狙う宣言を更新できませんでした。\n' + error.message)
+    } finally {
+      targetBusy[id] = false
+    }
+  }
+
+  function touchSync(e, updatedAt = Date.now()) {
     if (!e) return
     const id = chanIdOfType(e.type)
     if (!id) return
-    e.updatedAt = Date.now()
+    e.updatedAt = updatedAt
     scheduleSync(id) // PUSH_ENABLED が false の間は何もしない
+  }
+
+  function queueFortCooldown(entry, updatedAt, historyId) {
+    entry.pendingCooldown = { eventAt: entry.eventAt, updatedAt, historyId, kind: historyId ? 'winner' : 'member', userId: T().userId }
+  }
+
+  function fortCooldown(entry) {
+    const tracker = T()
+    const draft = entry.pendingCooldown
+    const pending = draft && (!draft.userId || draft.userId === tracker.userId) ? draft : null
+    const saved = channels.fort.settings.fortCooldowns?.[aquaKey(entry)]
+    const own = pending?.historyId && tracker.hasRubyHistory(pending.historyId) && pending.updatedAt >= (saved?.personalUpdatedAt || 0) ? pending : null
+    const savedOwn = saved?.historyId && tracker.hasRubyHistory(saved.historyId)
+    const personalAt = own?.eventAt ?? (savedOwn ? saved.personalAt : undefined)
+    const sameWin = own && savedOwn && own.historyId === saved.historyId
+    const personalFirstAt = sameWin ? saved.personalFirstAt ?? saved.personalAt : own ? own.eventAt : saved?.personalFirstAt
+    const personalMemberCap = sameWin ? correctedMemberCap(saved.personalAt, own.updatedAt, saved.personalMemberCap)
+      : own ? null : saved?.personalMemberCap
+    const otherConfirmedAt = saved?.otherConfirmedAt ?? (saved?.confirmedAt !== saved?.personalAt ? saved?.confirmedAt : 0)
+    const observedAt = Math.max(saved?.observedAt ?? 0,
+      pending?.kind === 'member' && pending.eventAt > pending.updatedAt ? pending.eventAt + FORT_COOLDOWN_OFFSET_MS : 0)
+    const timing = resolveFortTiming({
+      ...saved, personalAt, personalFirstAt, personalMemberCap, otherConfirmedAt, observedAt: observedAt || null,
+      legacyAt: saved?.legacyAt ?? (saved?.confirmedAt === undefined ? saved?.sharedAt : undefined)
+    })
+    const latestMember = pending?.kind === 'member' && pending.updatedAt >= (saved?.memberUpdatedAt || 0) ? pending : null
+    return {
+      ...timing,
+      readyAt: latestMember ? (latestMember.eventAt === latestMember.updatedAt ? latestMember.eventAt : null) : saved?.readyAt,
+      personalAt,
+      historyId: own?.historyId ?? (savedOwn ? saved.historyId : undefined)
+    }
+  }
+
+  function pendingFortCooldowns() {
+    const tracker = T()
+    return tracker.entries.filter((e) => {
+      const draft = e.pendingCooldown
+      return SYNC_CHANNELS.fort.types.includes(e.type) && draft && (!draft.userId || draft.userId === tracker.userId)
+    }).slice(0, 1000).map((entry) => ({ entry, draft: entry.pendingCooldown }))
+  }
+
+  function cooldownPayload({ entry, draft }) {
+    return { type: entry.type, x: entry.x, y: entry.y, eventAt: draft.eventAt, updatedAt: draft.updatedAt, historyId: draft.historyId, kind: draft.kind }
   }
 
   /* 削除は「墓標」として記録し、同期で相手側にも伝える */
@@ -108,11 +261,19 @@ export const useSyncStore = defineStore('sync', () => {
 
   function itemPayload(id, e) {
     const it = {
-      type: e.type, x: Number(e.x), y: Number(e.y), label: e.label || '',
+      type: e.type, x: Number(e.x), y: Number(e.y), label: id === 'aqua' ? '' : e.label || '',
       eventAt: Number(e.eventAt), updatedAt: Number(e.updatedAt) || 0, deleted: false
     }
     if (id === 'fort') it.notify = T().shouldNotifyEntry(e) // 距離フィルター外・非表示は通知しない
     return it
+  }
+
+  function pendingWidgetDisplay(id) {
+    if (id !== 'aqua' && isConfigured('aqua')) return
+    const display = T().widgetDisplayRules()
+    const saved = channels[id].settings.widgetDisplaySynced
+    if (saved?.url === channels[id].settings.url && saved.userId === T().userId && saved.updatedAt >= display.updatedAt) return
+    return display
   }
   const tombPayload = (t) => ({ type: t.type, x: t.x, y: t.y, updatedAt: Number(t.updatedAt) || 0, deleted: true })
   const histPayload = (h) => ({
@@ -157,7 +318,7 @@ export const useSyncStore = defineStore('sync', () => {
       if (!locals.length) {
         if (tomb && (Number(tomb.updatedAt) || 0) >= ru) return // こちらで削除済み
         tracker.entries.push({
-          id: 'sync-' + newId(5), type: r.type, label: r.label || '',
+          id: 'sync-' + newId(5), type: r.type, label: id === 'aqua' ? '' : r.label || '',
           x: Number(r.x), y: Number(r.y), eventAt: Number(r.eventAt), updatedAt: ru
         })
         ch.tombs = ch.tombs.filter((t) => aquaKey(t) !== k)
@@ -173,7 +334,7 @@ export const useSyncStore = defineStore('sync', () => {
         if (newAt !== fromAt) l.resultLogged = false // 新しい周期。攻撃結果の記録は再び可能にする
         l.eventAt = newAt
         l.updatedAt = ru
-        if (r.label != null) l.label = String(r.label)
+        if (id === 'fort' && r.label != null) l.label = String(r.label)
         changed++
       }
     })
@@ -271,10 +432,21 @@ export const useSyncStore = defineStore('sync', () => {
       ch.tombs.forEach((t) => {
         if (tombIsNewest(def, t)) items.push(tombPayload(t))
       })
-      const payload = { items }
+      const payload = { items, preferences: preferences.pending(tracker.userId, def.types), includeTargets: true }
+      const widgetDisplay = pendingWidgetDisplay(id)
+      if (widgetDisplay) payload.widgetDisplay = widgetDisplay
+      if (id === 'aqua') {
+        payload.includeNearest = true
+        const storm = stormProfile()
+        if (storm?.dirty) payload.stormHome = storm
+      }
+      const revision = targetRevision[id]
+      const lostRevision = aquaLostRevision
+      const cooldownUpdates = id === 'fort' ? pendingFortCooldowns() : []
       let pendingH = []
       const sentTombIds = {}
       if (id === 'fort') {
+        payload.cooldowns = cooldownUpdates.map(cooldownPayload)
         // ルビー記録：まだ送っていない記録＋削除の記録だけを送り、前回以降の変化だけを受け取る
         ch.histTombs = ch.histTombs.filter((t) => now - (Number(t.at) || 0) < HIST_TOMB_KEEP_MS)
         pendingH = tracker.attackHistory
@@ -287,10 +459,32 @@ export const useSyncStore = defineStore('sync', () => {
       }
 
       const data = await client(id).sync(payload)
+      if (widgetDisplay && data.widgetDisplaySaved === true) {
+        ch.settings.widgetDisplaySynced = { url: ch.settings.url, userId: tracker.userId, updatedAt: widgetDisplay.updatedAt }
+      }
+      if (Array.isArray(data.preferences)) preferences.apply(tracker.userId, data.preferences)
+      if (id === 'aqua' && isConfigured(id)) receiveStorm(data)
+      if (id === 'aqua' && aquaLostRevision === lostRevision && Array.isArray(data.lost)) receiveAquaLost(data.lost)
+      if (targetRevision[id] === revision && Array.isArray(data.targets)) setTargets(id, data.targets)
       const changes = []
       const changed = applyRemoteItems(id, Array.isArray(data.items) ? data.items : [], changes)
       let rubyAdd = 0, rubyDel = 0
       if (id === 'fort') {
+        ch.settings.cooldownUnsupported = !Array.isArray(data.cooldowns)
+        if (Array.isArray(data.cooldowns)) {
+          const previous = ch.settings.fortCooldowns || {}
+          const cooldowns = Object.fromEntries(data.cooldowns.map((timer) => [timer.key, timer]))
+          Object.values(cooldowns).forEach((timer) => {
+            const before = previous[timer.key]
+            if (timer.sharedAt == null || (before?.sharedAt === timer.sharedAt && before?.sharedMemberAt === timer.sharedMemberAt)) return
+            const entry = tracker.entries.find((e) => aquaKey(e) === timer.key)
+            if (entry) changes.push({ kind: 'cooldown', type: entry.type, x: entry.x, y: entry.y, to: timer.sharedAt })
+          })
+          ch.settings.fortCooldowns = cooldowns
+          cooldownUpdates.forEach(({ entry, draft }) => {
+            if (entry.pendingCooldown === draft) delete entry.pendingCooldown
+          })
+        }
         if (Array.isArray(data.history)) {
           const rr = applyRemoteHistory(data.history, data.historyDeleted)
           rubyAdd = rr.add
@@ -303,9 +497,10 @@ export const useSyncStore = defineStore('sync', () => {
           ch.settings.histUnsupported = true // サーバーがルビー記録の同期に未対応
         }
       }
-      const total = changed + rubyAdd + rubyDel
+      tracker.reconcileTimerUpdate()
+      const total = changed + changes.filter((change) => change.kind === 'cooldown').length + rubyAdd + rubyDel
       // 5分おきの自動同期は「相手の更新なし」を履歴に残さない
-      if (!auto || changes.length || rubyAdd || rubyDel || !def.intervalMs) {
+      if (!auto || changes.length || rubyAdd || rubyDel) {
         addSyncLog({ ch: id, at: Date.now(), auto, sent: items.filter((i) => !i.deleted).length, changes, ruby: { add: rubyAdd, del: rubyDel } })
       }
       ch.settings.lastSyncDate = getLocalDateKey(Date.now())
@@ -314,7 +509,6 @@ export const useSyncStore = defineStore('sync', () => {
       rt.failStreak = 0
       rt.lastError = ''
       if (mode === 'manual') ui.showToast('🔄 ' + def.name + 'を同期しました（相手の更新 ' + total + '件を反映）')
-      else if (auto && !def.intervalMs) ui.showToast('🔄 本日の' + def.name + 'データを同期しました' + (total ? '（相手の更新 ' + total + '件）' : ''))
       else if (auto && total) ui.showToast('🔄 ' + def.name + '：他の端末の更新 ' + total + '件を反映しました')
       return { ok: true, changed: total, error: '' }
     } catch (err) {
@@ -346,16 +540,12 @@ export const useSyncStore = defineStore('sync', () => {
 
   /* 確認ダイアログが開いている間だけ、自動同期を見送る */
   function userBusy() {
-    return !!document.querySelector('.modalOverlay.show')
+    return !!document.querySelector('.modalBox[open]')
   }
   function syncDue(id) {
-    const def = SYNC_CHANNELS[id]
-    const rt = runtime[id]
     const s = channels[id].settings
-    const now = Date.now()
-    if (rt.lastTryAt && now - rt.lastTryAt < SYNC_RETRY_MS) return false
-    if (def.intervalMs) return now - (Number(s.lastSyncAt) || 0) >= def.intervalMs - 5000
-    return s.lastSyncDate !== getLocalDateKey(now)
+    const lastAttempt = runtime[id].lastTryAt || Number(s.lastBuiltAt || s.lastSyncAt) || 0
+    return Date.now() - lastAttempt >= SHARED_SYNC_INTERVAL_MS
   }
   function autoSyncIfNeeded() {
     if (document.visibilityState !== 'visible') return
@@ -383,9 +573,15 @@ export const useSyncStore = defineStore('sync', () => {
       if ((Number(t.updatedAt) || 0) <= since) return
       if (tombIsNewest(def, t)) items.push(tombPayload(t))
     })
+    const pendingPreferences = preferences.pending(tracker.userId, def.types)
     const payload = { items }
+    const widgetDisplay = pendingWidgetDisplay(id)
+    if (widgetDisplay) payload.widgetDisplay = widgetDisplay
+    if (id === 'aqua' && stormProfile()?.dirty) payload.stormHome = stormProfile()
+    if (pendingPreferences.length) payload.preferences = pendingPreferences
     let hasHistory = false
     if (id === 'fort') {
+      payload.cooldowns = pendingFortCooldowns().slice(0, 200).map(cooldownPayload)
       const hp = []
       tracker.attackHistory
         .filter((h) => !h.synced && h.id && def.types.includes(h.type) && Number.isFinite(Number(h.at)))
@@ -398,7 +594,7 @@ export const useSyncStore = defineStore('sync', () => {
         hasHistory = true
       }
     }
-    return items.length || hasHistory ? payload : null
+    return items.length || hasHistory || payload.cooldowns?.length || pendingPreferences.length || payload.stormHome || widgetDisplay ? payload : null
   }
 
   let lastLeaveAt = 0
@@ -414,12 +610,39 @@ export const useSyncStore = defineStore('sync', () => {
   }
 
   /* ================= 接続設定（アクア・要塞で共通のURL・合言葉・ユーザーID） ================= */
+  function switchFortAccount(tracker, nextUserId) {
+    const key = (id) => 'ggeFortAccount:' + id
+    const isFort = (e) => SYNC_CHANNELS.fort.types.includes(e.type)
+    const ch = channels.fort
+    try {
+      localStorage.setItem(key(tracker.userId), JSON.stringify({
+        entries: tracker.entries.filter(isFort), history: tracker.attackHistory,
+        tombs: ch.tombs, historyTombs: ch.histTombs
+      }))
+    } catch {
+      ui.showAlert('現在のユーザーのデータを端末に保存できないため、ユーザーIDを切り替えられませんでした。')
+      return false
+    }
+    const saved = asObject(loadJson(key(nextUserId), {}))
+    tracker.entries = tracker.entries.filter((e) => !isFort(e)).concat(asArray(saved.entries))
+    tracker.attackHistory = asArray(saved.history)
+    tracker.inlineEditId = null
+    ch.tombs = asArray(saved.tombs)
+    ch.histTombs = asArray(saved.historyTombs)
+    syncLog.value = syncLog.value.filter((row) => row.ch !== 'fort')
+    return true
+  }
+
   async function saveConnection({ url, token, userId }) {
     url = String(url || '').trim().replace(/\/+$/, '')
     token = String(token || '').trim()
     userId = String(userId || '').trim()
     if (!url && !token) {
+      nearest.value = {}
+      aquaLostRevision++
       CHANNEL_IDS.forEach((id) => {
+        targetRevision[id]++
+        setTargets(id, [])
         const s = channels[id].settings
         s.url = ''; s.token = ''; s.lastSyncDate = ''; s.lastSyncAt = 0; s.lastBuiltAt = 0
         notify[id].loaded = false
@@ -434,20 +657,39 @@ export const useSyncStore = defineStore('sync', () => {
     }
     const tracker = T()
     const changed = userId !== tracker.userId || CHANNEL_IDS.some((id) => channels[id].settings.url !== url || channels[id].settings.token !== token)
+    if (changed && CHANNEL_IDS.some((id) => runtime[id].syncing)) {
+      ui.showAlert('同期が完了してから接続設定を保存してください。')
+      return false
+    }
+    if (changed) tracker.commitTimerUpdate()
+    const switchingUser = !!tracker.userId && userId !== tracker.userId
+    if (switchingUser && !switchFortAccount(tracker, userId)) return false
     tracker.setUserId(userId)
     CHANNEL_IDS.forEach((id) => {
       const s = channels[id].settings
-      if (changed) { s.lastSyncDate = ''; s.lastSyncAt = 0; s.lastBuiltAt = 0 }
+      if (changed) {
+        s.lastSyncDate = ''; s.lastSyncAt = 0; s.lastBuiltAt = 0
+        targetRevision[id]++
+        setTargets(id, [])
+      }
       s.url = url
       s.token = token
       runtime[id].lastTryAt = 0
       runtime[id].lastError = ''
     })
     if (changed) { // 接続先が変わったら、ルビー記録を新しい接続先へ最初から送り直す
-      tracker.attackHistory.forEach((h) => { delete h.synced })
+      nearest.value = {}
+      aquaLostRevision++
+      delete channels.aqua.settings.lost
+      delete channels.fort.settings.fortCooldowns
+      tracker.entries.forEach((e) => {
+        if (e.pendingCooldown && !e.pendingCooldown.userId) e.pendingCooldown.userId = userId
+      })
+      if (!switchingUser) tracker.attackHistory.forEach((h) => { delete h.synced })
       channels.fort.settings.histCursor = 0
       channels.fort.settings.histUnsupported = false
-      channels.fort.histTombs = []
+      channels.fort.settings.cooldownUnsupported = false
+      if (!switchingUser) channels.fort.histTombs = []
     }
     const ok = await syncAll()
     await loadAllNotify()
@@ -513,13 +755,14 @@ export const useSyncStore = defineStore('sync', () => {
   /* ================= 表示用 ================= */
   function statusText(id) {
     const ch = channels[id]
-    const def = SYNC_CHANNELS[id]
     const rt = runtime[id]
     if (!isConfigured(id)) return '未接続'
     if (rt.lastError) return '失敗：' + rt.lastError
-    const auto = def.intervalMs ? '5分おきに自動同期' : '日付が変わって最初に開いた時に自動同期'
+    const auto = '5分おきに自動同期'
     const last = ch.settings.lastSyncAt ? '最終同期 ' + formatClock(ch.settings.lastSyncAt) : 'まだ同期していません'
-    const extra = id === 'fort' && ch.settings.histUnsupported ? '（ルビー記録はサーバー未対応）' : ''
+    let extra = ''
+    if (id === 'fort' && ch.settings.histUnsupported) extra += '（ルビー記録はサーバー未対応）'
+    if (id === 'fort' && ch.settings.cooldownUnsupported) extra += '（共有タイマーはサーバー未対応）'
     return last + '／' + auto + extra
   }
 
@@ -534,9 +777,10 @@ export const useSyncStore = defineStore('sync', () => {
   }
 
   return {
-    channels, runtime, syncLog, notify,
+    channels, runtime, syncLog, notify, targetBusy, targetFor, toggleTarget, stormProfile, updateStormProfile, nearestFor, timerVersion,
+    isAquaLost, toggleAquaLost, aquaLostBusy,
     chanIdOfType, isConfigured, anyConfigured, statusText, summary,
-    touchSync, addTombstone, addHistTomb, clearSyncLog,
+    touchSync, queueFortCooldown, fortCooldown, addTombstone, addHistTomb, clearSyncLog,
     syncNow, syncAll, autoSyncIfNeeded, scheduleSync, flushOnLeave, saveConnection,
     loadNotify, loadAllNotify, saveNotify, testNotify
   }

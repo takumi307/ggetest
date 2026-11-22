@@ -1,32 +1,21 @@
 <script setup>
-import { ref, watch, nextTick } from 'vue'
+import { ref } from 'vue'
 import { useTrackerStore } from '@/stores/trackerStore'
 import { useUiStore } from '@/stores/uiStore'
 import { TYPE_OPTIONS } from '@/utils/constants'
 import { toNum } from '@/utils/helpers'
 
-const props = defineProps({ open: Boolean })
+const type = defineModel({ type: String, required: true })
 const emit = defineEmits(['close'])
 const tracker = useTrackerStore()
 const ui = useUiStore()
 
-const type = ref('wildFortress')
 const bx = ref('')
 const by = ref('')
 const pasteText = ref('')
 const list = ref([])
 const xInput = ref(null)
 const yInput = ref(null)
-
-watch(() => props.open, async (v) => {
-  if (!v) return
-  list.value = []
-  bx.value = ''
-  by.value = ''
-  pasteText.value = ''
-  await nextTick()
-  xInput.value && xInput.value.focus()
-})
 
 function removeItem(i) { list.value.splice(i, 1) }
 
@@ -74,8 +63,7 @@ async function save() {
 </script>
 
 <template>
-  <div class="panel" :class="{ open }">
-    <h2>複数登録</h2>
+  <div>
     <div class="field">
       <label>登録する種類</label>
       <select v-model="type">
@@ -106,7 +94,7 @@ async function save() {
     </div>
 
     <details style="margin: 4px 0 14px;">
-      <summary style="font-size:12px; color:#6b6a65; cursor:pointer;">まとめて貼り付けたい場合はこちら</summary>
+      <summary style="font-size:12px; color:var(--muted-weak); cursor:pointer;">まとめて貼り付けたい場合はこちら</summary>
       <div class="field" style="margin-top:10px;">
         <textarea v-model="pasteText" placeholder="1行に1件&#10;例: 662,662&#10;700,531&#10;または 662 662"></textarea>
         <button class="addBtn secondary" type="button" style="margin-top:8px;" @click="parsePaste">貼り付けた内容をリストに追加</button>

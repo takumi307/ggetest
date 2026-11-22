@@ -9,21 +9,25 @@ const tracker = useTrackerStore()
 
 const form = reactive({
   type: props.entry.type,
-  label: props.entry.label || '',
+  label: tracker.entryLabel(props.entry),
   x: props.entry.x,
   y: props.entry.y,
   rh: '',
-  rm: ''
+  rm: '',
+  rs: ''
 })
 
 function remainLabel() {
-  return isAquaFamily(props.entry.type) ? '沈むまでの残り時間(空欄なら変更なし)' : '残り時間(空欄なら変更なし)'
+  if (isAquaFamily(form.type)) return '沈むまでの残り時間（空欄なら変更なし）'
+  const sameCoord = form.type === props.entry.type && Number(form.x) === Number(props.entry.x) && Number(form.y) === Number(props.entry.y)
+  const hours = sameCoord && tracker.winnerHistoryId(props.entry) ? 120 : 24
+  return `${hours}時間クールタイムの残り（空欄なら変更なし）`
 }
 function save() { tracker.submitEdit(props.entry.id, form) }
 </script>
 
 <template>
-  <div class="card" style="border-color:#2c2c2a;">
+  <div class="card" style="border-color:var(--control-border);">
     <h2 style="font-size:14px; margin:0 0 12px;">編集</h2>
     <div class="rowFields">
       <div class="field">
@@ -32,7 +36,7 @@ function save() { tracker.submitEdit(props.entry.id, form) }
           <option v-for="t in TYPE_OPTIONS" :key="t.value" :value="t.value">{{ t.label }}</option>
         </select>
       </div>
-      <div class="field"><label>ラベル</label><input v-model="form.label" type="text"></div>
+      <div class="field"><label>自分用の名前</label><input v-model="form.label" type="text" maxlength="50"></div>
     </div>
     <div class="rowFields">
       <div class="field"><label>X座標</label><input v-model="form.x" type="number"></div>
@@ -43,6 +47,7 @@ function save() { tracker.submitEdit(props.entry.id, form) }
       <div class="rowFields">
         <div class="field"><input v-model="form.rh" type="number" min="0" placeholder="時間"></div>
         <div class="field"><input v-model="form.rm" type="number" min="0" max="59" placeholder="分"></div>
+        <div v-if="isAquaFamily(form.type)" class="field"><input v-model="form.rs" type="number" inputmode="numeric" min="0" max="59" placeholder="秒（任意）" aria-label="秒"></div>
       </div>
     </div>
     <div class="panelBtns">
