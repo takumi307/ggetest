@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import { DatabaseSync } from 'node:sqlite'
 import test from 'node:test'
+import { createPinia, setActivePinia } from 'pinia'
+import { createServer } from 'vite'
 
 function bindD1WithStats(database) {
   return {
@@ -277,4 +279,107 @@ test('partial sync handles >90 items chunking cleanly', async (t) => {
   assert.equal(res.status, 200)
   assert.equal(res.data.items.length, 120)
   assert.equal(res.data.cooldowns.length, 120)
+})
+
+test('web syncStore uses submitted scope for auto/leave syncs and preserves existing list', async (t) => {
+  const vite = await createServer({ server: { middlewareMode: true, ws: false }, appType: 'custom' })
+  t.after(() => vite.close())
+  const { default: worker } = await vite.ssrLoadModule('/gge-tracker-api/src/index.js')
+  const { useTrackerStore } = await vite.ssrLoadModule('/src/stores/trackerStore.js')
+  const { useSyncStore } = await vite.ssrLoadModule('/src/stores/syncStore.js')
+
+  const db = new DatabaseSync(':memory:')
+  t.after(() => db.close())
+  const env = { DB: bindD1WithStats(db), TOKEN: 'test-token' }
+
+  const start = 1_800_000_000_000
+  const hour = 3_600_000
+  const minute = 60_000
+  let now = start
+  t.mock.method(Date, 'now', () => now)
+
+  // 他端末で2座標＋1件のクールダウンを事前登録しておく
+  const seed = async (body) => worker.fetch(new Request('https://tracker.invalid/api/fort/sync', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer test-token', 'X-User-Id': 'web-user', 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  }), env)
+  await seed({
+    items: [
+      { type: 'fortress', x: 10, y: 10, label: 'keep-me', eventAt: start + hour, updatedAt: start },
+      { type: 'dragon', x: 20, y: 20, label: 'edit-me', eventAt: start + 2 * hour, updatedAt: start }
+    ],
+    cooldowns: [
+      { type: 'fortress', x: 10, y: 10, kind: 'member', eventAt: start + 10 * hour, updatedAt: start }
+    ]
+  })
+
+  const storage = new Map([
+    ['ggeUserId', '"web-user"'],
+    ['ggeFortSyncSettings', JSON.stringify({ url: 'https://tracker.invalid', token: 'test-token' })]
+  ])
+  const previousStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: {
+      getItem: (k) => storage.get(k) ?? null,
+      setItem: (k, v) => storage.set(k, v)
+    }
+  })
+  t.after(() => {
+    if (previousStorage) Object.defineProperty(globalThis, 'localStorage', previousStorage)
+    else delete globalThis.localStorage
+    setActivePinia(undefined)
+  })
+
+  const sentRequests = []
+  t.mock.method(globalThis, 'fetch', (url, options) => {
+    const parsed = options?.body ? JSON.parse(options.body) : null
+    sentRequests.push({ url, body: parsed, keepalive: !!options?.keepalive })
+    return worker.fetch(new Request(url, options), env)
+  })
+
+  setActivePinia(createPinia())
+  const tracker = useTrackerStore()
+  const sync = useSyncStore()
+
+  // 1) 初回同期は全件モード（responseScope なし）
+  assert.equal((await sync.syncNow('fort', 'silent')).ok, true)
+  assert.equal(sentRequests[0].body.responseScope, undefined)
+  assert.equal(tracker.entries.length, 2)
+  assert.ok(sync.channels.fort.settings.fortCooldowns['fortress|10|10'])
+
+  // 2) 1座標だけ編集して5分後の自動同期 → responseScope: 'submitted' で変更分1件だけ送信
+  now = start + 5 * minute
+  const dragon = tracker.entries.find((e) => e.type === 'dragon')
+  await tracker.submitEdit(dragon.id, { ...dragon, label: 'edited-by-web' })
+  tracker.commitTimerUpdate()
+  assert.equal((await sync.syncNow('fort', 'auto')).ok, true)
+
+  const autoReq = sentRequests[1].body
+  assert.equal(autoReq.responseScope, 'submitted')
+  assert.equal(autoReq.items.length, 1)
+  assert.equal(autoReq.items[0].x, 20)
+  // 部分レスポンスを反映しても、もう一方の座標と既存クールダウンが消えていないこと
+  assert.equal(tracker.entries.length, 2)
+  assert.ok(sync.channels.fort.settings.fortCooldowns['fortress|10|10'])
+
+  // 3) 離脱時 keepalive 送信も responseScope: 'submitted' を使うこと
+  now = start + 6 * minute
+  await tracker.submitEdit(dragon.id, { ...dragon, label: 'edited-on-leave' })
+  sync.flushOnLeave()
+  const leaveReq = sentRequests[2]
+  assert.equal(leaveReq.keepalive, true)
+  assert.equal(leaveReq.body.responseScope, 'submitted')
+  assert.equal(leaveReq.body.items.length, 1)
+
+  // 4) 30分経過後の自動同期は全件モードに戻り、他端末の追加を取り込めること
+  now = start + 35 * minute
+  await seed({
+    items: [{ type: 'wildFortress', x: 30, y: 30, label: 'remote-new', eventAt: start + 3 * hour, updatedAt: now - minute }]
+  })
+  assert.equal((await sync.syncNow('fort', 'auto')).ok, true)
+  const fullAutoReq = sentRequests[3].body
+  assert.equal(fullAutoReq.responseScope, undefined)
+  assert.equal(tracker.entries.some((e) => e.type === 'wildFortress' && e.x === 30), true)
 })

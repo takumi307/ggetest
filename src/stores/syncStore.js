@@ -408,6 +408,32 @@ export const useSyncStore = defineStore('sync', () => {
   /* ================= 同期本体 =================
    * mode: 'manual'（手動・結果をメッセージ表示）／'auto'（自動）／'silent'（呼び出し側がまとめて表示）
    * 戻り値: { ok, changed, error } */
+  const FULL_SYNC_INTERVAL_MS = 30 * 60 * 1000
+
+  function collectPendingItems(id, since) {
+    const def = SYNC_CHANNELS[id]
+    const ch = channels[id]
+    const tracker = T()
+    const items = []
+    tracker.entries.forEach((e) => {
+      if (!validEntry(def, e) || (Number(e.updatedAt) || 0) <= since) return
+      items.push(itemPayload(id, e))
+    })
+    ch.tombs.forEach((t) => {
+      if ((Number(t.updatedAt) || 0) <= since) return
+      if (tombIsNewest(def, t)) items.push(tombPayload(t))
+    })
+    return items
+  }
+
+  function shouldUsePartialSync(id, mode, now) {
+    if (id !== 'fort' || mode !== 'auto') return false
+    const s = channels[id].settings
+    const lastBuilt = Number(s.lastBuiltAt) || 0
+    const lastFull = Number(s.lastFullSyncAt) || 0
+    return lastBuilt > 0 && lastFull > 0 && now - lastFull < FULL_SYNC_INTERVAL_MS
+  }
+
   async function syncNow(id, mode = 'manual') {
     const auto = mode === 'auto'
     const def = SYNC_CHANNELS[id]
@@ -425,14 +451,19 @@ export const useSyncStore = defineStore('sync', () => {
       const now = Date.now()
       ch.tombs = ch.tombs.filter((t) => now - (Number(t.updatedAt) || 0) < TOMB_KEEP_MS)
 
-      const items = []
-      tracker.entries.forEach((e) => {
-        if (validEntry(def, e)) items.push(itemPayload(id, e))
-      })
-      ch.tombs.forEach((t) => {
-        if (tombIsNewest(def, t)) items.push(tombPayload(t))
-      })
+      const usePartial = shouldUsePartialSync(id, mode, now)
+      const since = Number(ch.settings.lastBuiltAt) || Number(ch.settings.lastSyncAt) || 0
+      const items = usePartial ? collectPendingItems(id, since) : []
+      if (!usePartial) {
+        tracker.entries.forEach((e) => {
+          if (validEntry(def, e)) items.push(itemPayload(id, e))
+        })
+        ch.tombs.forEach((t) => {
+          if (tombIsNewest(def, t)) items.push(tombPayload(t))
+        })
+      }
       const payload = { items, preferences: preferences.pending(tracker.userId, def.types), includeTargets: true }
+      if (usePartial) payload.responseScope = 'submitted'
       const widgetDisplay = pendingWidgetDisplay(id)
       if (widgetDisplay) payload.widgetDisplay = widgetDisplay
       if (id === 'aqua') {
@@ -473,8 +504,15 @@ export const useSyncStore = defineStore('sync', () => {
         ch.settings.cooldownUnsupported = !Array.isArray(data.cooldowns)
         if (Array.isArray(data.cooldowns)) {
           const previous = ch.settings.fortCooldowns || {}
-          const cooldowns = Object.fromEntries(data.cooldowns.map((timer) => [timer.key, timer]))
-          Object.values(cooldowns).forEach((timer) => {
+          const isPartialRes = data.partial === true || data.responseScope === 'submitted'
+          const cooldowns = isPartialRes ? { ...previous } : {}
+          data.cooldowns.forEach((timer) => { cooldowns[timer.key] = timer })
+          if (isPartialRes && Array.isArray(data.cooldownResults)) {
+            data.cooldownResults.forEach((r) => {
+              if (r?.key && r.status === 'unregistered') delete cooldowns[r.key]
+            })
+          }
+          data.cooldowns.forEach((timer) => {
             const before = previous[timer.key]
             if (timer.sharedAt == null || (before?.sharedAt === timer.sharedAt && before?.sharedMemberAt === timer.sharedMemberAt)) return
             const entry = tracker.entries.find((e) => aquaKey(e) === timer.key)
@@ -506,6 +544,7 @@ export const useSyncStore = defineStore('sync', () => {
       ch.settings.lastSyncDate = getLocalDateKey(Date.now())
       ch.settings.lastSyncAt = Date.now()
       ch.settings.lastBuiltAt = now // この時刻より後に変わった分が「未送信」
+      if (!usePartial) ch.settings.lastFullSyncAt = now
       rt.failStreak = 0
       rt.lastError = ''
       if (mode === 'manual') ui.showToast('🔄 ' + def.name + 'を同期しました（相手の更新 ' + total + '件を反映）')
@@ -564,15 +603,7 @@ export const useSyncStore = defineStore('sync', () => {
     const ch = channels[id]
     const tracker = T()
     const since = Number(ch.settings.lastBuiltAt) || Number(ch.settings.lastSyncAt) || 0
-    const items = []
-    tracker.entries.forEach((e) => {
-      if (!validEntry(def, e) || (Number(e.updatedAt) || 0) <= since) return
-      items.push(itemPayload(id, e))
-    })
-    ch.tombs.forEach((t) => {
-      if ((Number(t.updatedAt) || 0) <= since) return
-      if (tombIsNewest(def, t)) items.push(tombPayload(t))
-    })
+    const items = collectPendingItems(id, since)
     const pendingPreferences = preferences.pending(tracker.userId, def.types)
     const payload = { items }
     const widgetDisplay = pendingWidgetDisplay(id)
@@ -581,6 +612,7 @@ export const useSyncStore = defineStore('sync', () => {
     if (pendingPreferences.length) payload.preferences = pendingPreferences
     let hasHistory = false
     if (id === 'fort') {
+      payload.responseScope = 'submitted'
       payload.cooldowns = pendingFortCooldowns().slice(0, 200).map(cooldownPayload)
       const hp = []
       tracker.attackHistory
@@ -590,7 +622,6 @@ export const useSyncStore = defineStore('sync', () => {
       ch.histTombs.slice(0, 200).forEach((t) => hp.push({ id: t.id, deleted: true }))
       if (hp.length) {
         payload.history = hp
-        payload.historySince = Date.now() // 返ってくる結果は使わないので、小さくする
         hasHistory = true
       }
     }
@@ -668,7 +699,7 @@ export const useSyncStore = defineStore('sync', () => {
     CHANNEL_IDS.forEach((id) => {
       const s = channels[id].settings
       if (changed) {
-        s.lastSyncDate = ''; s.lastSyncAt = 0; s.lastBuiltAt = 0
+        s.lastSyncDate = ''; s.lastSyncAt = 0; s.lastBuiltAt = 0; s.lastFullSyncAt = 0
         targetRevision[id]++
         setTargets(id, [])
       }
